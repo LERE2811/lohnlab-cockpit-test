@@ -18,7 +18,9 @@ export type RoleType = (typeof Roles)[keyof typeof Roles];
 type CompanySchemaType = z.ZodObject<{
   id: z.ZodString;
   name: z.ZodString;
-  vertriebspartner: z.ZodString;
+  vertriebspartner: z.ZodEnum<
+    [typeof Vertriebspartner.LOHNLAB, typeof Vertriebspartner.LOHNKONZEPT]
+  >;
   created_at: z.ZodDate;
   subsidiaries: z.ZodOptional<z.ZodArray<z.ZodLazy<z.ZodType<any>>>>;
   company_users: z.ZodOptional<z.ZodArray<z.ZodLazy<z.ZodType<any>>>>;
