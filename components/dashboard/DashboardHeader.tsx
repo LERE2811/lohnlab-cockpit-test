@@ -11,15 +11,12 @@ import { LogOut, Settings, User } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { useUser } from "@/context/user-context";
 
 export function DashboardHeader() {
   const router = useRouter();
+  const { user } = useUser();
   // TODO: Replace with actual user data from your auth context/store
-  const user = {
-    name: "Max Mustermann",
-    role: "Administrator",
-    email: "max@example.com",
-  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -36,18 +33,18 @@ export function DashboardHeader() {
               className="relative flex h-8 items-center gap-2 px-2"
             >
               <Avatar className="h-8 w-8">
-                <AvatarImage src="" alt={user.name} />
+                <AvatarImage src="" alt={user?.firstname} />
                 <AvatarFallback>
-                  {user.name
+                  {user?.firstname
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-medium">{user.name}</span>
+                <span className="text-sm font-medium">{user?.firstname}</span>
                 <span className="text-xs text-muted-foreground">
-                  {user.role}
+                  {user?.role}
                 </span>
               </div>
             </Button>
@@ -59,7 +56,7 @@ export function DashboardHeader() {
                 className="w-full justify-start gap-2"
                 asChild
               >
-                <Link href="/dashboard/settings">
+                <Link href="/settings">
                   <Settings className="h-4 w-4" />
                   Einstellungen
                 </Link>
