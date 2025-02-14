@@ -40,7 +40,6 @@ type EmployeeSchemaType = z.ZodObject<{
   subsidiary_id: z.ZodString;
   firstname: z.ZodString;
   lastname: z.ZodString;
-  email: z.ZodString;
   created_at: z.ZodDate;
   subsidiary: z.ZodOptional<z.ZodLazy<z.ZodType<any>>>;
 }>;
@@ -83,6 +82,14 @@ type UserProfileSchemaType = z.ZodObject<{
   company_users: z.ZodOptional<z.ZodArray<z.ZodLazy<z.ZodType<any>>>>;
 }>;
 
+type AnsprechpartnerSchemaType = z.ZodObject<{
+  id: z.ZodString;
+  company_id: z.ZodString;
+  firstname: z.ZodString;
+  lastname: z.ZodString;
+  email: z.ZodString;
+}>;
+
 export const companySchema: CompanySchemaType = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -109,7 +116,6 @@ export const employeeSchema: EmployeeSchemaType = z.object({
   subsidiary_id: z.string().uuid(),
   firstname: z.string(),
   lastname: z.string(),
-  email: z.string().email(),
   created_at: z.date(),
   subsidiary: z.lazy(() => subsidiarySchema).optional(),
 });
@@ -148,6 +154,14 @@ export const userProfileSchema: UserProfileSchemaType = z.object({
   company_users: z.array(z.lazy(() => companyUserSchema)).optional(),
 });
 
+export const ansprechpartnerSchema: AnsprechpartnerSchemaType = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  firstname: z.string(),
+  lastname: z.string(),
+  email: z.string().email(),
+});
+
 // Inferred Types
 export type Company = z.infer<typeof companySchema>;
 export type CompanyUser = z.infer<typeof companyUserSchema>;
@@ -156,3 +170,4 @@ export type Permission = z.infer<typeof permissionSchema>;
 export type Role = z.infer<typeof roleSchema>;
 export type Subsidiary = z.infer<typeof subsidiarySchema>;
 export type UserProfile = z.infer<typeof userProfileSchema>;
+export type Ansprechpartner = z.infer<typeof ansprechpartnerSchema>;

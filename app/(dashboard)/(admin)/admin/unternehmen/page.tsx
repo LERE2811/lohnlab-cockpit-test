@@ -16,6 +16,14 @@ const AdminUnternehmenPage = async () => {
 
   const { data, error } = await supabase.from("companies").select("*");
 
+  // we need to fetch the ansprechpartner for each company
+  const { data: ansprechpartnerData, error: ansprechpartnerError } =
+    await supabase.from("ansprechpartner").select("*");
+
+  if (ansprechpartnerError) {
+    console.error(ansprechpartnerError);
+  }
+
   if (error) {
     console.error(error);
   }
@@ -26,7 +34,10 @@ const AdminUnternehmenPage = async () => {
         <h1 className="text-2xl font-bold">Unternehmen</h1>
         <CreateCompanyDialog />
       </div>
-      <CompanyTable companies={data} />
+      <CompanyTable
+        companies={data}
+        ansprechpartnerData={ansprechpartnerData}
+      />
     </div>
   );
 };
