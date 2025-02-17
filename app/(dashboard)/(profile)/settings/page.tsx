@@ -15,14 +15,23 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/utils/supabase/client";
 import { checkClientPermission } from "@/utils/permissionUtils";
+import { FormError } from "@/components/ui/form-error";
+
+interface FormErrors {
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+}
 
 const SettingsPage = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [hasCreateCompanyPermission, setHasCreateCompanyPermission] =
     useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [formData, setFormData] = useState({
-    fullName: "",
+    firstname: "",
+    lastname: "",
     email: "",
     currentPassword: "",
     newPassword: "",
@@ -45,30 +54,103 @@ const SettingsPage = () => {
 
   useEffect(() => {
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setFormData((prev) => ({
-          ...prev,
-          email: user.email || "",
-          fullName: user.user_metadata?.full_name || "",
-        }));
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        if (user) {
+          // Get user profile data
+          const { data: profileData, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single();
+
+          if (profileError) throw profileError;
+
+          if (profileData) {
+            setFormData((prev) => ({
+              ...prev,
+              email: user.email || "",
+              firstname: profileData.firstname || "",
+              lastname: profileData.lastname || "",
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        toast({
+          title: "Fehler",
+          description: "Fehler beim Laden der Benutzerdaten",
+          className: "border-red-500",
+        });
       }
     };
 
     getUser();
-  }, [supabase.auth]);
+  }, []);
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!formData.firstname.trim()) {
+      newErrors.firstname = "Vorname ist erforderlich";
+    }
+
+    if (!formData.lastname.trim()) {
+      newErrors.lastname = "Nachname ist erforderlich";
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "E-Mail ist erforderlich";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Ungültige E-Mail-Adresse";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const updateProfile = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.updateUser({
-        email: formData.email,
-        data: { full_name: formData.fullName },
-      });
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) throw authError;
 
-      if (error) throw error;
+      if (!user) {
+        throw new Error("Kein Benutzer gefunden");
+      }
+
+      // Update auth email if changed
+      if (user.email !== formData.email) {
+        const { error: emailError } = await supabase.auth.updateUser({
+          email: formData.email,
+        });
+        if (emailError) throw emailError;
+      }
+
+      // Update profile data
+      const { error: profileError } = await supabase
+        .from("user_profiles")
+        .update({
+          firstname: formData.firstname,
+          lastname: formData.lastname,
+          email: formData.email,
+        })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
+
       toast({
         title: "✅ Erfolg",
         description: "Profil erfolgreich aktualisiert!",
@@ -76,6 +158,7 @@ const SettingsPage = () => {
         className: "border-green-500",
       });
     } catch (error) {
+      console.error("Error updating profile:", error);
       toast({
         title: "Fehler",
         description: "Fehler beim Aktualisieren des Profils!",
@@ -146,28 +229,65 @@ const SettingsPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Vollständiger Name</Label>
-            <Input
-              id="fullName"
-              value={formData.fullName}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, fullName: e.target.value }))
-              }
-              placeholder="Geben Sie Ihren vollständigen Namen ein"
-            />
+          <div className="flex gap-4">
+            <div className="w-full space-y-2">
+              <Label htmlFor="firstname">Vorname*</Label>
+              <Input
+                id="firstname"
+                value={formData.firstname}
+                onChange={(e) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    firstname: e.target.value,
+                  }));
+                  if (errors.firstname) {
+                    const { firstname, ...rest } = errors;
+                    setErrors(rest);
+                  }
+                }}
+                className={errors.firstname ? "border-red-500" : ""}
+                placeholder="Geben Sie Ihren Vornamen ein"
+              />
+              {errors.firstname && <FormError message={errors.firstname} />}
+            </div>
+            <div className="w-full space-y-2">
+              <Label htmlFor="lastname">Nachname*</Label>
+              <Input
+                id="lastname"
+                value={formData.lastname}
+                onChange={(e) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    lastname: e.target.value,
+                  }));
+                  if (errors.lastname) {
+                    const { lastname, ...rest } = errors;
+                    setErrors(rest);
+                  }
+                }}
+                className={errors.lastname ? "border-red-500" : ""}
+                placeholder="Geben Sie Ihren Nachnamen ein"
+              />
+              {errors.lastname && <FormError message={errors.lastname} />}
+            </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">E-Mail</Label>
+            <Label htmlFor="email">E-Mail*</Label>
             <Input
               id="email"
               type="email"
               value={formData.email}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, email: e.target.value }))
-              }
+              onChange={(e) => {
+                setFormData((prev) => ({ ...prev, email: e.target.value }));
+                if (errors.email) {
+                  const { email, ...rest } = errors;
+                  setErrors(rest);
+                }
+              }}
+              className={errors.email ? "border-red-500" : ""}
               placeholder="Geben Sie Ihre E-Mail-Adresse ein"
             />
+            {errors.email && <FormError message={errors.email} />}
           </div>
           <Button onClick={updateProfile} disabled={isLoading}>
             {isLoading ? "Aktualisieren..." : "Profil aktualisieren"}

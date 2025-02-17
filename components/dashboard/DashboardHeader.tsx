@@ -45,9 +45,6 @@ export function DashboardHeader() {
   if (!user || isLoading) {
     return null;
   }
-  console.log("user", user);
-  console.log("company", company);
-  console.log("subsidiary", subsidiary);
 
   // Only show company switcher for admin and kundenbetreuer
   const showCompanySwitcher =
@@ -55,7 +52,7 @@ export function DashboardHeader() {
 
   return (
     <header className="position fixed left-0 right-0 top-0 border-b bg-background">
-      <div className="flex h-14 w-full items-center justify-end px-6">
+      <div className="flex h-14 w-full items-center justify-end gap-4 px-6">
         <div className="flex items-center gap-4">
           {/* Company Switcher */}
           {showCompanySwitcher && availableCompanies.length > 0 && (
@@ -130,10 +127,16 @@ export function DashboardHeader() {
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
+                  {user?.lastname
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-medium">{user?.firstname}</span>
+                <span className="text-sm font-medium">
+                  {user?.firstname} {user?.lastname}
+                </span>
                 <span className="text-xs text-muted-foreground">
                   {user?.role}
                 </span>
