@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils"
-
+import { cn } from "@/lib/utils";
+import { AlertCircle } from "lucide-react";
 interface FormErrorProps extends React.HTMLAttributes<HTMLDivElement> {
   message?: string;
 }
@@ -10,12 +10,13 @@ export function FormError({ message, className, ...props }: FormErrorProps) {
   return (
     <div
       className={cn(
-        "text-sm font-medium text-destructive bg-destructive/10 rounded-md px-3 py-2 mt-2",
-        className
+        "mt-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive",
+        className,
       )}
       {...props}
     >
+      <AlertCircle className="h-22 w-22" />
       {message}
     </div>
   );
-} 
+}

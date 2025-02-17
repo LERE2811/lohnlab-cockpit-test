@@ -7,25 +7,116 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, Building2, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/user-context";
+import { useCompany } from "@/context/company-context";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Roles } from "@/shared/model";
 
 export function DashboardHeader() {
   const router = useRouter();
   const { user } = useUser();
-  // TODO: Replace with actual user data from your auth context/store
+  const {
+    company,
+    subsidiary,
+    availableCompanies,
+    availableSubsidiaries,
+    setSelectedCompany,
+    setSelectedSubsidiary,
+    isLoading,
+  } = useCompany();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
   };
 
+  // Don't show switchers for users without a role or during loading
+  if (!user || isLoading) {
+    return null;
+  }
+  console.log("user", user);
+  console.log("company", company);
+  console.log("subsidiary", subsidiary);
+
+  // Only show company switcher for admin and kundenbetreuer
+  const showCompanySwitcher =
+    user.role === Roles.ADMIN || user.role === Roles.KUNDENBETREUER;
+
   return (
     <header className="position fixed left-0 right-0 top-0 border-b bg-background">
-      <div className="flex h-14 w-full items-center justify-end gap-4 px-6">
+      <div className="flex h-14 w-full items-center justify-end px-6">
+        <div className="flex items-center gap-4">
+          {/* Company Switcher */}
+          {showCompanySwitcher && availableCompanies.length > 0 && (
+            <Select
+              value={company?.id}
+              onValueChange={async (value) => {
+                const selectedCompany = availableCompanies.find(
+                  (c) => c.id === value,
+                );
+                if (selectedCompany) {
+                  await setSelectedCompany(selectedCompany);
+                }
+              }}
+            >
+              <SelectTrigger className="w-[200px]">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  <SelectValue placeholder="Unternehmen auswählen" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableCompanies.map((company) => (
+                  <SelectItem key={company.id} value={company.id}>
+                    {company.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Subsidiary Switcher */}
+          {company && availableSubsidiaries.length > 0 && (
+            <>
+              <Separator orientation="vertical" className="h-6" />
+              <Select
+                value={subsidiary?.id}
+                onValueChange={(value) => {
+                  const selectedSubsidiary = availableSubsidiaries.find(
+                    (s) => s.id === value,
+                  );
+                  if (selectedSubsidiary) {
+                    setSelectedSubsidiary(selectedSubsidiary);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Gesellschaft auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSubsidiaries.map((subsidiary) => (
+                    <SelectItem key={subsidiary.id} value={subsidiary.id}>
+                      {subsidiary.name} {subsidiary.legal_form}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+        </div>
+
+        {/* User Menu */}
         <Popover>
           <PopoverTrigger asChild>
             <Button

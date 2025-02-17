@@ -1,12 +1,20 @@
-'use client'
+"use client";
 import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { FormError } from "@/components/ui/form-error";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -14,6 +22,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const errorMessage = searchParams.get("error");
+    if (errorMessage) {
+      setError(errorMessage);
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,13 +48,17 @@ export default function LoginPage() {
         } else if (authError.message.includes("Email not confirmed")) {
           setError("Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse.");
         } else {
-          setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+          setError(
+            "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+          );
         }
         return;
       }
       router.push("/dashboard");
     } catch (error) {
-      setError("Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+      setError(
+        "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+      );
       console.error("Error logging in:", error);
     } finally {
       setIsLoading(false);
@@ -49,7 +69,9 @@ export default function LoginPage() {
     <div className="flex h-screen w-full items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Lohn Cockpit</CardTitle>
+          <CardTitle className="text-center text-2xl font-bold">
+            Lohn Cockpit
+          </CardTitle>
           <CardDescription className="text-center">
             Bitte melden Sie sich mit Ihren Anmeldeinformationen an.
           </CardDescription>
@@ -79,13 +101,14 @@ export default function LoginPage() {
                 required
               />
             </div>
+            <div className="flex justify-end">
+              <Link className="text-sm text-gray-500" href="/forgot-password">
+                Passwort vergessen?
+              </Link>
+            </div>
           </CardContent>
           <CardFooter>
-            <Button 
-              className="w-full" 
-              type="submit" 
-              disabled={isLoading}
-            >
+            <Button className="w-full" type="submit" disabled={isLoading}>
               {isLoading ? "Einloggen..." : "Einloggen"}
             </Button>
           </CardFooter>

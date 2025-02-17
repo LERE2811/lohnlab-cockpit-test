@@ -41,6 +41,11 @@ const sidebarItems: SidebarItem[] = [
     href: "/optimierung",
     icon: Plus,
   },
+  {
+    title: "Benutzerverwaltung",
+    href: "/users",
+    icon: Users,
+  },
 ];
 
 const sidebarAdminItems: SidebarItem[] = [
@@ -48,6 +53,11 @@ const sidebarAdminItems: SidebarItem[] = [
     title: "Unternehmen",
     href: "/admin/unternehmen",
     icon: Building2,
+  },
+  {
+    title: "Benutzerverwaltung",
+    href: "/admin/user-management",
+    icon: Users,
   },
 ];
 

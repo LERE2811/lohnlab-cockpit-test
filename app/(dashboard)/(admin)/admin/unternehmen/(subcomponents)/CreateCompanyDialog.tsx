@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/utils/supabase/client";
 import { Vertriebspartner } from "@/shared/model";
 import { useRouter } from "next/navigation";
-
+import { Plus } from "lucide-react";
 type FormStep = 1 | 2 | 3;
 
 interface Subsidiary {
@@ -247,7 +247,10 @@ export const CreateCompanyDialog = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>Unternehmen erstellen</Button>
+        <Button>
+          <Plus className="h-4 w-4" />
+          Unternehmen erstellen
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
