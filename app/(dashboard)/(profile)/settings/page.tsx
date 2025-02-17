@@ -91,7 +91,7 @@ const SettingsPage = () => {
     };
 
     getUser();
-  }, []);
+  }, [toast]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
