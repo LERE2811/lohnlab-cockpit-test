@@ -68,7 +68,7 @@ export function DashboardHeader() {
                   }
                 }}
               >
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[250px]">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
                     <SelectValue placeholder="Unternehmen auswählen" />
@@ -87,7 +87,7 @@ export function DashboardHeader() {
           )}
 
           {/* Subsidiary Switcher */}
-          {company && availableSubsidiaries.length > 0 && (
+          {company && availableSubsidiaries.length > 1 && (
             <>
               <Select
                 value={subsidiary?.id}
@@ -112,6 +112,15 @@ export function DashboardHeader() {
                 </SelectContent>
               </Select>
             </>
+          )}
+          {/* Display single subsidiary name without dropdown */}
+          {company && availableSubsidiaries.length === 1 && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Gesellschaft:</span>
+              <span className="font-medium">
+                {availableSubsidiaries[0].name}
+              </span>
+            </div>
           )}
         </div>
 

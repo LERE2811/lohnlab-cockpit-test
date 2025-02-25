@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
-import { ThemeProvider } from "@/components/ThemeProvider";
 import { Suspense } from "react";
 import { VercelToolbar } from "@vercel/toolbar/next";
 const geistSans = Geist({
@@ -30,7 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        {children}
         <Suspense>
           <VercelToolbar />
         </Suspense>
