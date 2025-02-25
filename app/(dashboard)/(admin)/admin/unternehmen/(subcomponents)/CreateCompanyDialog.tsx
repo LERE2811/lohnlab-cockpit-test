@@ -45,7 +45,22 @@ interface CompanyFormData {
   ansprechpartner: Ansprechpartner;
 }
 
-const LEGAL_FORMS = ["GmbH", "AG", "UG", "GbR", "KG", "OHG", "GmbH & Co. KG"];
+const LEGAL_FORMS = [
+  "GmbH",
+  "AG",
+  "UG",
+  "GbR",
+  "KG",
+  "OHG",
+  "GmbH & Co. KG",
+  "juristische Person",
+  "KdöR",
+  "PartG",
+  "PartG mbB",
+  "e.V.",
+  "eG",
+  "natürliche Person",
+];
 
 export const CreateCompanyDialog = () => {
   const [open, setOpen] = useState(false);

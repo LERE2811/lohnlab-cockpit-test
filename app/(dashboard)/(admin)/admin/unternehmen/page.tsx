@@ -4,8 +4,21 @@ import { Company } from "@/shared/model";
 import { getUserProfile } from "@/utils/supabaseUtils";
 import { CompanyTable } from "./(subcomponents)/CompanyTable";
 import { CreateCompanyDialog } from "./(subcomponents)/CreateCompanyDialog";
+import { Suspense } from "react";
+import { Loader2 } from "lucide-react";
 
-const AdminUnternehmenPage = async () => {
+// Loading component
+function LoadingState() {
+  return (
+    <div className="flex h-[50vh] w-full flex-col items-center justify-center space-y-4">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">Daten werden geladen...</p>
+    </div>
+  );
+}
+
+// Content component
+async function CompanyManagementContent() {
   const supabase = await createClient();
 
   const userProfile = await getUserProfile();
@@ -26,18 +39,28 @@ const AdminUnternehmenPage = async () => {
 
   if (error) {
     console.error(error);
+    return (
+      <div className="flex h-[50vh] w-full flex-col items-center justify-center">
+        <p className="text-red-500">Fehler beim Laden der Daten</p>
+      </div>
+    );
   }
 
+  return (
+    <CompanyTable companies={data} ansprechpartnerData={ansprechpartnerData} />
+  );
+}
+
+const AdminUnternehmenPage = async () => {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Unternehmen</h1>
         <CreateCompanyDialog />
       </div>
-      <CompanyTable
-        companies={data}
-        ansprechpartnerData={ansprechpartnerData}
-      />
+      <Suspense fallback={<LoadingState />}>
+        <CompanyManagementContent />
+      </Suspense>
     </div>
   );
 };

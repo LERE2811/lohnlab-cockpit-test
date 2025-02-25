@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
 
       setMessage({
         type: "success",
-        text: "Eine E-Mail mit Anweisungen zum Zurücksetzen Ihres Passworts wurde gesendet.",
+        text: "Sollte die E-Mail-Adresse existieren, wird eine E-Mail mit Anweisungen zum Zurücksetzen Ihres Passworts gesendet.",
       });
     } catch (error: unknown) {
       console.error("Password reset error:", error);

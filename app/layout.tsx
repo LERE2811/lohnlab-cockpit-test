@@ -4,7 +4,8 @@ import "./globals.css";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { ThemeProvider } from "@/components/ThemeProvider";
-
+import { Suspense } from "react";
+import { VercelToolbar } from "@vercel/toolbar/next";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,6 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
+        <Suspense>
+          <VercelToolbar />
+        </Suspense>
       </body>
     </html>
   );

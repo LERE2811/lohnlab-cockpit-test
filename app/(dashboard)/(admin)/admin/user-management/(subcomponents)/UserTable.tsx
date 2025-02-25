@@ -1,3 +1,5 @@
+"use client";
+
 import { Company, CompanyUser, UserProfile } from "@/shared/model";
 import {
   Table,
@@ -7,13 +9,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MoreHorizontal } from "lucide-react";
+import { Loader2, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 const UserTable = ({
   users,
@@ -24,6 +28,62 @@ const UserTable = ({
   company_users: CompanyUser[];
   companies: Company[];
 }) => {
+  const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
+  const [actionType, setActionType] = useState<"edit" | "delete" | null>(null);
+
+  const handleEditUser = async (userId: string) => {
+    setLoadingUserId(userId);
+    setActionType("edit");
+
+    try {
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      toast({
+        title: "Noch nicht implementiert",
+        description:
+          "Die Bearbeitung von Benutzern ist noch nicht implementiert.",
+        className: "border-yellow-500",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Fehler",
+        description: "Ein Fehler ist aufgetreten.",
+        className: "border-red-500",
+      });
+    } finally {
+      setLoadingUserId(null);
+      setActionType(null);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setLoadingUserId(userId);
+    setActionType("delete");
+
+    try {
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      toast({
+        title: "Noch nicht implementiert",
+        description: "Das Löschen von Benutzern ist noch nicht implementiert.",
+        className: "border-yellow-500",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Fehler",
+        description: "Ein Fehler ist aufgetreten.",
+        className: "border-red-500",
+      });
+    } finally {
+      setLoadingUserId(null);
+      setActionType(null);
+    }
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -61,14 +121,35 @@ const UserTable = ({
                 </PopoverTrigger>
                 <PopoverContent className="w-40 p-2">
                   <div className="flex flex-col space-y-1">
-                    <Button variant="ghost" className="w-full justify-start">
-                      Bearbeiten
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => handleEditUser(user.id)}
+                      disabled={loadingUserId === user.id}
+                    >
+                      {loadingUserId === user.id && actionType === "edit" ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Lädt...
+                        </>
+                      ) : (
+                        "Bearbeiten"
+                      )}
                     </Button>
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-red-600 hover:bg-red-100 hover:text-red-600"
+                      onClick={() => handleDeleteUser(user.id)}
+                      disabled={loadingUserId === user.id}
                     >
-                      Löschen
+                      {loadingUserId === user.id && actionType === "delete" ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Lädt...
+                        </>
+                      ) : (
+                        "Löschen"
+                      )}
                     </Button>
                   </div>
                 </PopoverContent>

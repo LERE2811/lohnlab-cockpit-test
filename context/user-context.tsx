@@ -1,9 +1,8 @@
 "use client";
 
-import { Role, UserProfile } from "@/shared/model";
+import { UserProfile } from "@/shared/model";
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase/client";
-import { Permission } from "@/utils/permissionUtils";
 
 export const UserContext = createContext<UserContextType>({
   user: null,

@@ -56,37 +56,39 @@ export function DashboardHeader() {
         <div className="flex items-center gap-4">
           {/* Company Switcher */}
           {showCompanySwitcher && availableCompanies.length > 0 && (
-            <Select
-              value={company?.id}
-              onValueChange={async (value) => {
-                const selectedCompany = availableCompanies.find(
-                  (c) => c.id === value,
-                );
-                if (selectedCompany) {
-                  await setSelectedCompany(selectedCompany);
-                }
-              }}
-            >
-              <SelectTrigger className="w-[200px]">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  <SelectValue placeholder="Unternehmen auswählen" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {availableCompanies.map((company) => (
-                  <SelectItem key={company.id} value={company.id}>
-                    {company.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <Select
+                value={company?.id}
+                onValueChange={async (value) => {
+                  const selectedCompany = availableCompanies.find(
+                    (c) => c.id === value,
+                  );
+                  if (selectedCompany) {
+                    await setSelectedCompany(selectedCompany);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    <SelectValue placeholder="Unternehmen auswählen" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCompanies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Separator orientation="vertical" className="h-6" />
+            </>
           )}
 
           {/* Subsidiary Switcher */}
           {company && availableSubsidiaries.length > 0 && (
             <>
-              <Separator orientation="vertical" className="h-6" />
               <Select
                 value={subsidiary?.id}
                 onValueChange={(value) => {
@@ -104,7 +106,7 @@ export function DashboardHeader() {
                 <SelectContent>
                   {availableSubsidiaries.map((subsidiary) => (
                     <SelectItem key={subsidiary.id} value={subsidiary.id}>
-                      {subsidiary.name} {subsidiary.legal_form}
+                      {subsidiary.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
