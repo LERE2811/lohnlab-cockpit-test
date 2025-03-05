@@ -1,39 +1,149 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOnboarding } from "@/context/onboarding-context";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
+import { supabase } from "@/utils/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/context/company-context";
 
 export default function CompanyInfoStep() {
   const { formData, updateFormData, saveProgress } = useOnboarding();
+  const { company } = useCompany();
+  const { toast } = useToast();
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(
-    formData.companyInfo.logo_url || null,
-  );
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Load logo preview when component mounts or formData changes
+  useEffect(() => {
+    const loadLogoPreview = async () => {
+      if (formData.companyInfo.logo_url) {
+        try {
+          // Extract the path from the stored URL
+          const path = formData.companyInfo.logo_url;
+
+          // If it's a path to a file in the bucket
+          if (path.includes("company_logos/")) {
+            // Get the file name from the path
+            const fileName = path.split("/").pop();
+
+            // Generate a signed URL that expires in 1 hour
+            const { data, error } = await supabase.storage
+              .from("company_logos")
+              .createSignedUrl(fileName || "", 3600);
+
+            if (error) {
+              console.error("Error creating signed URL:", error);
+              return;
+            }
+
+            if (data?.signedUrl) {
+              setLogoPreview(data.signedUrl);
+            }
+          }
+        } catch (error) {
+          console.error("Error loading logo preview:", error);
+        }
+      } else {
+        // Reset preview when there's no logo URL
+        setLogoPreview(null);
+      }
+    };
+
+    loadLogoPreview();
+  }, [formData.companyInfo.logo_url, company?.id]);
 
   // Funktion zum Hochladen des Logos
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!company) {
+      toast({
+        title: "Fehler",
+        description: "Unternehmensdaten konnten nicht geladen werden",
+        className: "border-red-500",
+      });
+      return;
+    }
+
+    // Überprüfe die Dateigröße (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "Fehler",
+        description: "Die Datei ist zu groß. Maximale Größe: 2MB",
+        className: "border-red-500",
+      });
+      return;
+    }
+
     setLogoFile(file);
+    setIsUploading(true);
 
-    // Erstelle eine Vorschau des Bildes
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setLogoPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Erstelle eine Vorschau des Bildes
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
 
-    // Hier würde normalerweise der Upload zu einem Speicherdienst erfolgen
-    // Für dieses Beispiel speichern wir nur die Datei-URL
-    // In einer realen Anwendung würde hier der Upload zu Supabase Storage erfolgen
-    updateFormData("companyInfo", {
-      logo_url: URL.createObjectURL(file),
-    });
+      // Generiere einen eindeutigen Dateinamen
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${company.id}_logo_${Date.now()}.${fileExt}`;
+
+      // Upload zur Supabase Storage
+      const { data, error } = await supabase.storage
+        .from("company_logos")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      // Store the path to the file instead of a public URL
+      const filePath = `company_logos/${fileName}`;
+
+      // Generate a signed URL for immediate preview
+      const { data: signedUrlData, error: signedUrlError } =
+        await supabase.storage
+          .from("company_logos")
+          .createSignedUrl(fileName, 3600);
+
+      if (signedUrlError) {
+        console.error("Error creating signed URL:", signedUrlError);
+      } else if (signedUrlData?.signedUrl) {
+        setLogoPreview(signedUrlData.signedUrl);
+      }
+
+      // Aktualisiere die Formulardaten mit dem Dateipfad
+      updateFormData("companyInfo", {
+        logo_url: filePath,
+      });
+
+      // Speichere den Fortschritt
+      await saveProgress();
+
+      toast({
+        title: "Erfolg",
+        description: "Logo wurde erfolgreich hochgeladen",
+        className: "border-green-500",
+      });
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      toast({
+        title: "Fehler",
+        description: "Beim Hochladen des Logos ist ein Fehler aufgetreten",
+        className: "border-red-500",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -82,9 +192,14 @@ export default function CompanyInfoStep() {
               variant="outline"
               onClick={() => document.getElementById("logo-upload")?.click()}
               className="flex items-center gap-2"
+              disabled={isUploading}
             >
-              <Upload className="h-4 w-4" />
-              Logo hochladen
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              {isUploading ? "Wird hochgeladen..." : "Logo hochladen"}
             </Button>
             <input
               id="logo-upload"
@@ -92,6 +207,7 @@ export default function CompanyInfoStep() {
               accept="image/*"
               onChange={handleLogoUpload}
               className="hidden"
+              disabled={isUploading}
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Empfohlene Größe: 200x200 Pixel, max. 2MB

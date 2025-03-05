@@ -18,11 +18,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Company } from "@/shared/model";
-import { UserPlus } from "lucide-react";
-import { useState } from "react";
+import { Company, UserProfile, CompanyUser } from "@/shared/model";
+import { Loader2, Pencil } from "lucide-react";
+import { useEffect, useState } from "react";
 import { FormError } from "@/components/ui/form-error";
-import { useRouter } from "next/navigation";
 
 interface FormErrors {
   firstname?: string;
@@ -32,17 +31,39 @@ interface FormErrors {
   company?: string;
 }
 
-const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
-  const router = useRouter();
+interface EditUserDialogProps {
+  user: UserProfile;
+  companies: Company[];
+  companyUsers: CompanyUser[];
+  onUserUpdated: () => void;
+}
+
+const EditUserDialog = ({
+  user,
+  companies,
+  companyUsers,
+  onUserUpdated,
+}: EditUserDialogProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [role, setRole] = useState<string>("");
-  const [email, setEmail] = useState<string>("");
+  const [role, setRole] = useState<string>(user.role || "");
+  const [email, setEmail] = useState<string>(user.email || "");
+  const [firstname, setFirstname] = useState<string>(user.firstname || "");
+  const [lastname, setLastname] = useState<string>(user.lastname || "");
   const [company, setCompany] = useState<string>("");
-  const [firstname, setFirstname] = useState<string>("");
-  const [lastname, setLastname] = useState<string>("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const showCompanySelect = role === "User" || role === "Kundenbetreuer";
+
+  // Set initial company value
+  useEffect(() => {
+    if (isOpen) {
+      const userCompany = companyUsers.find((cu) => cu.user_id === user.id);
+      if (userCompany) {
+        setCompany(userCompany.company_id);
+      }
+    }
+  }, [isOpen, user.id, companyUsers]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -87,30 +108,35 @@ const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/invite", {
-        method: "POST",
-        body: JSON.stringify({ email, role, company, firstname, lastname }),
+      const response = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstname,
+          lastname,
+          email,
+          role,
+          company,
+        }),
       });
+
       if (response.ok) {
         toast({
           title: "✅ Erfolg",
-          description: "Benutzer wurde erfolgreich eingeladen",
+          description: "Benutzer wurde erfolgreich aktualisiert",
           variant: "default",
           className: "border-green-500",
         });
-        // Reset form
-        setEmail("");
-        setRole("");
-        setCompany("");
-        setFirstname("");
-        setLastname("");
-        setErrors({});
         setIsOpen(false);
-        router.refresh();
+        onUserUpdated();
       } else {
+        const errorData = await response.json();
         toast({
           title: "Fehler",
-          description: "Fehler beim Einladen des Benutzers",
+          description:
+            errorData.error || "Fehler beim Aktualisieren des Benutzers",
           className: "border-red-500",
         });
       }
@@ -129,14 +155,14 @@ const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <UserPlus className="h-4 w-4" />
-          Benutzer einladen
+        <Button variant="ghost" className="w-full justify-start">
+          <Pencil className="mr-2 h-4 w-4" />
+          Bearbeiten
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Benutzer einladen</DialogTitle>
+          <DialogTitle>Benutzer bearbeiten</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
@@ -196,6 +222,7 @@ const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
             <div className="space-y-2">
               <Label htmlFor="role">Rolle*</Label>
               <Select
+                value={role}
                 onValueChange={(value) => {
                   setRole(value);
                   if (errors.role) {
@@ -222,6 +249,7 @@ const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
               <div className="space-y-2">
                 <Label htmlFor="company">Unternehmen*</Label>
                 <Select
+                  value={company}
                   onValueChange={(value) => {
                     setCompany(value);
                     if (errors.company) {
@@ -247,11 +275,15 @@ const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
             )}
           </div>
           <DialogFooter>
-            <Button
-              type="submit"
-              disabled={isSubmitting || Object.keys(errors).length > 0}
-            >
-              {isSubmitting ? "Wird eingeladen..." : "Einladen"}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wird gespeichert...
+                </>
+              ) : (
+                "Speichern"
+              )}
             </Button>
           </DialogFooter>
         </form>
@@ -260,4 +292,4 @@ const InviteUserDialog = ({ companies }: { companies: Company[] }) => {
   );
 };
 
-export default InviteUserDialog;
+export default EditUserDialog;

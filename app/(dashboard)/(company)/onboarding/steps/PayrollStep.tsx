@@ -4,19 +4,21 @@ import { useOnboarding } from "@/context/onboarding-context";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PayrollContact } from "@/shared/model";
 import { Plus, Trash2 } from "lucide-react";
+import { useCompany } from "@/context/company-context";
 
 export default function PayrollStep() {
   const { formData, updateFormData } = useOnboarding();
+  const { company } = useCompany();
   const [payrollContacts, setPayrollContacts] = useState<PayrollContact[]>(
     formData.payrollInfo.payroll_contacts.length > 0
       ? formData.payrollInfo.payroll_contacts
       : [
           {
             id: crypto.randomUUID(),
-            company_id: "",
+            company_id: company?.id || "",
             firstname: "",
             lastname: "",
             email: "",
@@ -26,10 +28,29 @@ export default function PayrollStep() {
         ],
   );
 
+  // Aktualisiere die company_id, wenn sich das Unternehmen ändert
+  useEffect(() => {
+    if (company && payrollContacts.some((contact) => !contact.company_id)) {
+      const updatedContacts = payrollContacts.map((contact) => ({
+        ...contact,
+        company_id: contact.company_id || company.id,
+      }));
+      setPayrollContacts(updatedContacts);
+      updateFormData("payrollInfo", { payroll_contacts: updatedContacts });
+    }
+  }, [company, payrollContacts, updateFormData]);
+
   // Aktualisiere die Kontakte im Formular
   const updateContacts = (newContacts: PayrollContact[]) => {
-    setPayrollContacts(newContacts);
-    updateFormData("payrollInfo", { payroll_contacts: newContacts });
+    // Stelle sicher, dass alle Kontakte eine company_id haben
+    const contactsWithCompanyId = newContacts.map((contact) => ({
+      ...contact,
+      company_id: contact.company_id || company?.id || "",
+    }));
+
+    setPayrollContacts(contactsWithCompanyId);
+    updateFormData("payrollInfo", { payroll_contacts: contactsWithCompanyId });
+    // Die Daten werden beim Klicken auf "Weiter" oder "Speichern" im übergeordneten Komponenten gespeichert
   };
 
   // Füge einen neuen Kontakt hinzu
@@ -38,7 +59,7 @@ export default function PayrollStep() {
       ...payrollContacts,
       {
         id: crypto.randomUUID(),
-        company_id: "",
+        company_id: company?.id || "",
         firstname: "",
         lastname: "",
         email: "",
@@ -73,11 +94,13 @@ export default function PayrollStep() {
   // Aktualisiere die Lohnabrechnung-Verarbeitung
   const handleProcessingChange = (value: string) => {
     updateFormData("payrollInfo", { payroll_processing: value });
+    // Die Daten werden beim Klicken auf "Weiter" oder "Speichern" im übergeordneten Komponenten gespeichert
   };
 
   // Aktualisiere das Lohnabrechnung-System
   const handleSystemChange = (value: string) => {
     updateFormData("payrollInfo", { payroll_system: value });
+    // Die Daten werden beim Klicken auf "Weiter" oder "Speichern" im übergeordneten Komponenten gespeichert
   };
 
   return (
@@ -210,16 +233,15 @@ export default function PayrollStep() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor={`email-${index}`}>E-Mail*</Label>
+                <Label htmlFor={`email-${index}`}>E-Mail</Label>
                 <Input
                   id={`email-${index}`}
                   type="email"
-                  value={contact.email}
+                  value={contact.email || ""}
                   onChange={(e) =>
                     updateContact(index, "email", e.target.value)
                   }
                   placeholder="E-Mail-Adresse"
-                  required
                 />
               </div>
 

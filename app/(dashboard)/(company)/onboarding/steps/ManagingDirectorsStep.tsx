@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOnboarding } from "@/context/onboarding-context";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { ManagingDirector } from "@/shared/model";
+import { useCompany } from "@/context/company-context";
 
 export default function ManagingDirectorsStep() {
   const { formData, updateFormData } = useOnboarding();
+  const { company } = useCompany();
   const [directors, setDirectors] = useState<ManagingDirector[]>(
     formData.managingDirectors.length > 0
       ? formData.managingDirectors
       : [
           {
             id: crypto.randomUUID(),
-            company_id: "",
+            company_id: company?.id || "",
             firstname: "",
             lastname: "",
             email: "",
@@ -26,10 +28,29 @@ export default function ManagingDirectorsStep() {
         ],
   );
 
+  // Aktualisiere die company_id, wenn sich das Unternehmen ändert
+  useEffect(() => {
+    if (company && directors.some((director) => !director.company_id)) {
+      const updatedDirectors = directors.map((director) => ({
+        ...director,
+        company_id: director.company_id || company.id,
+      }));
+      setDirectors(updatedDirectors);
+      updateFormData("managingDirectors", updatedDirectors);
+    }
+  }, [company, directors, updateFormData]);
+
   // Aktualisiere die Geschäftsführer im Formular
   const updateDirectors = (newDirectors: ManagingDirector[]) => {
-    setDirectors(newDirectors);
-    updateFormData("managingDirectors", newDirectors);
+    // Stelle sicher, dass alle Geschäftsführer eine company_id haben
+    const directorsWithCompanyId = newDirectors.map((director) => ({
+      ...director,
+      company_id: director.company_id || company?.id || "",
+    }));
+
+    setDirectors(directorsWithCompanyId);
+    updateFormData("managingDirectors", directorsWithCompanyId);
+    // Die Daten werden beim Klicken auf "Weiter" oder "Speichern" im übergeordneten Komponenten gespeichert
   };
 
   // Füge einen neuen Geschäftsführer hinzu
@@ -38,7 +59,7 @@ export default function ManagingDirectorsStep() {
       ...directors,
       {
         id: crypto.randomUUID(),
-        company_id: "",
+        company_id: company?.id || "",
         firstname: "",
         lastname: "",
         email: "",
