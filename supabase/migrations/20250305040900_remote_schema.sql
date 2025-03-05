@@ -24,9 +24,37 @@ CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
+CREATE OR REPLACE FUNCTION "public"."create_user_company"("user_id" "uuid", "company_id" "uuid", "user_role" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$BEGIN
+  INSERT INTO company_users (user_id, company_id, role)
+  VALUES (user_id, company_id, user_role);
+END;$$;
+
+ALTER FUNCTION "public"."create_user_company"("user_id" "uuid", "company_id" "uuid", "user_role" "text") OWNER TO "postgres";
+
+CREATE OR REPLACE FUNCTION "public"."create_user_profile"("user_id" "uuid", "user_email" "text", "user_role" "text", "user_firstname" "text", "user_lastname" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$BEGIN
+  INSERT INTO user_profiles (id, email, role, firstname, lastname)
+  VALUES (user_id, user_email, user_role, user_firstname, user_lastname);
+END;$$;
+
+ALTER FUNCTION "public"."create_user_profile"("user_id" "uuid", "user_email" "text", "user_role" "text", "user_firstname" "text", "user_lastname" "text") OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
+
+CREATE TABLE IF NOT EXISTS "public"."ansprechpartner" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "company_id" "uuid" NOT NULL,
+    "firstname" "text" NOT NULL,
+    "lastname" "text" NOT NULL,
+    "email" "text" NOT NULL
+);
+
+ALTER TABLE "public"."ansprechpartner" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."companies" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -51,7 +79,6 @@ CREATE TABLE IF NOT EXISTS "public"."employees" (
     "subsidiary_id" "uuid" NOT NULL,
     "firstname" "text" NOT NULL,
     "lastname" "text" NOT NULL,
-    "email" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
@@ -104,9 +131,6 @@ ALTER TABLE ONLY "public"."company_users"
     ADD CONSTRAINT "company_users_pkey" PRIMARY KEY ("user_id", "company_id");
 
 ALTER TABLE ONLY "public"."employees"
-    ADD CONSTRAINT "employees_email_key" UNIQUE ("email");
-
-ALTER TABLE ONLY "public"."employees"
     ADD CONSTRAINT "employees_pkey" PRIMARY KEY ("id");
 
 ALTER TABLE ONLY "public"."permissions"
@@ -127,6 +151,9 @@ ALTER TABLE ONLY "public"."user_profiles"
 ALTER TABLE ONLY "public"."user_profiles"
     ADD CONSTRAINT "user_profiles_pkey" PRIMARY KEY ("id");
 
+ALTER TABLE ONLY "public"."ansprechpartner"
+    ADD CONSTRAINT "ansprechpartner_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
+
 ALTER TABLE ONLY "public"."company_users"
     ADD CONSTRAINT "company_users_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
 
@@ -144,6 +171,24 @@ ALTER TABLE ONLY "public"."subsidiaries"
 
 ALTER TABLE ONLY "public"."user_profiles"
     ADD CONSTRAINT "user_profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+
+CREATE POLICY "All commands for authenticated" ON "public"."company_users" TO "authenticated" USING (true) WITH CHECK (true);
+
+CREATE POLICY "All commands for authenticated" ON "public"."employees" TO "authenticated" USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all commands for authenticated" ON "public"."ansprechpartner" TO "authenticated" USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all commands for authenticated" ON "public"."companies" TO "authenticated" USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all commands for authenticated" ON "public"."subsidiaries" TO "authenticated" USING (true) WITH CHECK (true);
+
+CREATE POLICY "Enable read access for all users" ON "public"."roles" FOR SELECT USING (true);
+
+CREATE POLICY "Everyone can read" ON "public"."permissions" FOR SELECT TO "authenticated" USING (true);
+
+CREATE POLICY "all commands authenticated" ON "public"."user_profiles" TO "authenticated" USING (true) WITH CHECK (true);
+
+ALTER TABLE "public"."ansprechpartner" ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE "public"."companies" ENABLE ROW LEVEL SECURITY;
 
@@ -163,6 +208,18 @@ GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+GRANT ALL ON FUNCTION "public"."create_user_company"("user_id" "uuid", "company_id" "uuid", "user_role" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_user_company"("user_id" "uuid", "company_id" "uuid", "user_role" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_user_company"("user_id" "uuid", "company_id" "uuid", "user_role" "text") TO "service_role";
+
+GRANT ALL ON FUNCTION "public"."create_user_profile"("user_id" "uuid", "user_email" "text", "user_role" "text", "user_firstname" "text", "user_lastname" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_user_profile"("user_id" "uuid", "user_email" "text", "user_role" "text", "user_firstname" "text", "user_lastname" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_user_profile"("user_id" "uuid", "user_email" "text", "user_role" "text", "user_firstname" "text", "user_lastname" "text") TO "service_role";
+
+GRANT ALL ON TABLE "public"."ansprechpartner" TO "anon";
+GRANT ALL ON TABLE "public"."ansprechpartner" TO "authenticated";
+GRANT ALL ON TABLE "public"."ansprechpartner" TO "service_role";
 
 GRANT ALL ON TABLE "public"."companies" TO "anon";
 GRANT ALL ON TABLE "public"."companies" TO "authenticated";

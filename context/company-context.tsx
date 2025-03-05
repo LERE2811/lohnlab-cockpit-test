@@ -2,16 +2,16 @@
 
 // TODO: Create a Context to store the company id and subsidiary and the subsidary can be changed in the sidebar we can store that in the cookies
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { Company, Subsidiary, CompanyUser, UserProfile } from "@/shared/model";
 import { useUser } from "./user-context";
 import { supabase } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Roles } from "@/shared/model";
 
-// Cookie names
-const COMPANY_COOKIE = "selected_company_id";
-const SUBSIDIARY_COOKIE = "selected_subsidiary_id";
+// Storage keys
+const COMPANY_STORAGE_KEY = "selected_company_id";
+const SUBSIDIARY_STORAGE_KEY = "selected_subsidiary_id";
 
 interface CompanyContextType {
   company: Company | null;
@@ -48,73 +48,90 @@ export const CompanyProvider = ({
   const { user } = useUser();
   const { toast } = useToast();
 
-  // Load saved selections from cookies
+  // Track if we've already loaded from localStorage
+  const hasLoadedFromStorage = useRef(false);
+
+  // Load saved selections from localStorage
   const loadSavedSelections = async () => {
-    if (!user) return;
+    if (!user || hasLoadedFromStorage.current) return;
 
     try {
-      const savedCompanyId = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith(COMPANY_COOKIE))
-        ?.split("=")[1];
+      // Check if we're in a browser environment
+      if (typeof window !== "undefined") {
+        const savedCompanyId = localStorage.getItem(COMPANY_STORAGE_KEY);
 
-      const savedSubsidiaryId = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith(SUBSIDIARY_COOKIE))
-        ?.split("=")[1];
+        if (savedCompanyId) {
+          const { data: savedCompany } = await supabase
+            .from("companies")
+            .select("*")
+            .eq("id", savedCompanyId)
+            .single();
 
-      if (savedCompanyId) {
-        const { data: savedCompany } = await supabase
-          .from("companies")
-          .select("*")
-          .eq("id", savedCompanyId)
-          .single();
+          if (savedCompany) {
+            setCompany(savedCompany);
 
-        if (savedCompany) {
-          await setSelectedCompany(savedCompany);
+            const savedSubsidiaryId = localStorage.getItem(
+              SUBSIDIARY_STORAGE_KEY,
+            );
+            if (savedSubsidiaryId) {
+              const { data: savedSubsidiary } = await supabase
+                .from("subsidiaries")
+                .select("*")
+                .eq("id", savedSubsidiaryId)
+                .eq("company_id", savedCompany.id)
+                .single();
 
-          if (savedSubsidiaryId) {
-            const { data: savedSubsidiary } = await supabase
-              .from("subsidiaries")
-              .select("*")
-              .eq("id", savedSubsidiaryId)
-              .eq("company_id", savedCompany.id)
-              .single();
-
-            if (savedSubsidiary) {
-              setSelectedSubsidiary(savedSubsidiary);
+              if (savedSubsidiary) {
+                setSubsidiary(savedSubsidiary);
+              }
             }
           }
         }
+
+        hasLoadedFromStorage.current = true;
       }
     } catch (error) {
       console.error("Error loading saved selections:", error);
     }
   };
 
-  // Save selections to cookies
-  const saveSelectionsToCookies = () => {
-    if (company) {
-      document.cookie = `${COMPANY_COOKIE}=${company.id}; path=/; max-age=604800`; // 7 days
-    } else {
-      document.cookie = `${COMPANY_COOKIE}=; path=/; max-age=0`;
-    }
+  // Save selections to localStorage
+  const saveSelectionsToStorage = () => {
+    // Check if we're in a browser environment
+    if (typeof window !== "undefined") {
+      if (company) {
+        localStorage.setItem(COMPANY_STORAGE_KEY, company.id);
+      } else {
+        localStorage.removeItem(COMPANY_STORAGE_KEY);
+      }
 
-    if (subsidiary) {
-      document.cookie = `${SUBSIDIARY_COOKIE}=${subsidiary.id}; path=/; max-age=604800`; // 7 days
-    } else {
-      document.cookie = `${SUBSIDIARY_COOKIE}=; path=/; max-age=0`;
+      if (subsidiary) {
+        localStorage.setItem(SUBSIDIARY_STORAGE_KEY, subsidiary.id);
+      } else {
+        localStorage.removeItem(SUBSIDIARY_STORAGE_KEY);
+      }
     }
   };
 
   // Load saved selections when user is available
   useEffect(() => {
-    loadSavedSelections();
+    if (user) {
+      loadSavedSelections();
+    } else {
+      // Reset state when user is not available
+      setCompany(null);
+      setSubsidiary(null);
+      setAvailableCompanies([]);
+      setAvailableSubsidiaries([]);
+      hasLoadedFromStorage.current = false;
+    }
   }, [user]);
 
   // Save selections when they change
   useEffect(() => {
-    saveSelectionsToCookies();
+    if (company !== null || subsidiary !== null) {
+      saveSelectionsToStorage();
+    }
   }, [company, subsidiary]);
 
   // Fetch available companies based on user role
@@ -130,8 +147,13 @@ export const CompanyProvider = ({
           if (error) throw error;
           setAvailableCompanies(data || []);
 
-          // Only set first company if no saved selection
-          if (data && data.length > 0 && !company) {
+          // Only set first company if no company is selected and we've already checked localStorage
+          if (
+            data &&
+            data.length > 0 &&
+            !company &&
+            hasLoadedFromStorage.current
+          ) {
             await setSelectedCompany(data[0]);
           }
         } else if (user.role === Roles.KUNDENBETREUER) {
@@ -154,8 +176,13 @@ export const CompanyProvider = ({
             if (companiesError) throw companiesError;
             setAvailableCompanies(companies || []);
 
-            // Automatically set first company for kundenbetreuer
-            if (companies && companies.length > 0 && !company) {
+            // Only set first company if no company is selected and we've already checked localStorage
+            if (
+              companies &&
+              companies.length > 0 &&
+              !company &&
+              hasLoadedFromStorage.current
+            ) {
               await setSelectedCompany(companies[0]);
             }
           }
@@ -170,7 +197,7 @@ export const CompanyProvider = ({
           if (companyUserError) throw companyUserError;
 
           if (companyUser) {
-            const { data: company, error: companyError } = await supabase
+            const { data: companyData, error: companyError } = await supabase
               .from("companies")
               .select("*")
               .eq("id", companyUser.company_id)
@@ -178,10 +205,13 @@ export const CompanyProvider = ({
 
             if (companyError) throw companyError;
 
-            if (company) {
-              setAvailableCompanies([company]);
-              // Automatically set the company for user
-              await setSelectedCompany(company);
+            if (companyData) {
+              setAvailableCompanies([companyData]);
+
+              // Only set company if no company is selected and we've already checked localStorage
+              if (!company && hasLoadedFromStorage.current) {
+                await setSelectedCompany(companyData);
+              }
             }
           }
         }
@@ -198,7 +228,7 @@ export const CompanyProvider = ({
     };
 
     fetchAvailableCompanies();
-  }, [user]);
+  }, [user, hasLoadedFromStorage.current]);
 
   // Fetch subsidiaries when company changes
   useEffect(() => {
@@ -219,15 +249,28 @@ export const CompanyProvider = ({
 
         setAvailableSubsidiaries(data || []);
 
-        // Always set the first subsidiary when subsidiaries are loaded
-        if (data && data.length > 0) {
-          setSubsidiary(data[0]);
+        // Set first subsidiary if available and none selected
+        if (data && data.length > 0 && !subsidiary) {
+          // Check if there's a saved subsidiary in localStorage first
+          const savedSubsidiaryId = localStorage.getItem(
+            SUBSIDIARY_STORAGE_KEY,
+          );
+          const matchingSubsidiary = data.find(
+            (sub) => sub.id === savedSubsidiaryId,
+          );
+
+          if (matchingSubsidiary) {
+            setSelectedSubsidiary(matchingSubsidiary);
+          } else if (hasLoadedFromStorage.current) {
+            // Only set default if we've already checked localStorage
+            setSelectedSubsidiary(data[0]);
+          }
         }
       } catch (error) {
         console.error("Error fetching subsidiaries:", error);
         toast({
           title: "Fehler",
-          description: "Fehler beim Laden der Gesellschaften",
+          description: "Fehler beim Laden der Niederlassungen",
           className: "border-red-500",
         });
       }
@@ -238,7 +281,8 @@ export const CompanyProvider = ({
 
   const setSelectedCompany = async (newCompany: Company | null) => {
     setCompany(newCompany);
-    setSubsidiary(null); // Reset subsidiary when company changes
+    // Reset subsidiary when company changes
+    setSubsidiary(null);
   };
 
   const setSelectedSubsidiary = (newSubsidiary: Subsidiary | null) => {
