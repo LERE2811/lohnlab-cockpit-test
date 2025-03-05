@@ -1,13 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+type RouteParams = { params: { id: string } };
 
 // DELETE handler for removing a user
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const userId = params.id;
+    const userId = (await params).id;
 
     // Initialize Supabase with service role key (server-side only)
     const supabase = createClient(
@@ -72,11 +74,11 @@ export async function DELETE(
 
 // PATCH handler for updating a user
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const userId = params.id;
+    const userId = (await params).id;
     const { firstname, lastname, email, role, company } = await request.json();
 
     // Initialize Supabase with service role key (server-side only)
