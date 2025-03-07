@@ -140,7 +140,37 @@ export const OnboardingProvider = ({
           setFormData(formDataFromProgress);
 
           // Map legacy step numbers to the new enum if needed
-          setCurrentStep(mapLegacyStep(progressData.current_step));
+          const mappedStep = mapLegacyStep(progressData.current_step);
+          console.log(
+            "Original step from database:",
+            progressData.current_step,
+          );
+          console.log("Mapped step:", mappedStep);
+          setCurrentStep(mappedStep);
+
+          // Also check the subsidiary's onboarding_step for consistency
+          console.log(
+            "Subsidiary onboarding_step:",
+            subsidiary.onboarding_step,
+          );
+
+          // If there's a mismatch between progress and subsidiary, update the subsidiary
+          if (subsidiary.onboarding_step !== mappedStep) {
+            console.log(
+              "Mismatch between progress step and subsidiary step, updating subsidiary",
+            );
+            const { error: updateError } = await supabase
+              .from("subsidiaries")
+              .update({
+                onboarding_step: mappedStep,
+              })
+              .eq("id", subsidiary.id);
+
+            if (updateError) {
+              console.error("Error updating subsidiary step:", updateError);
+            }
+          }
+
           setIsLoading(false);
         } else {
           console.log("No existing progress found, creating new entry");
@@ -180,22 +210,106 @@ export const OnboardingProvider = ({
     loadProgress();
   }, [subsidiary, toast]);
 
+  // Save the current step whenever it changes
+  useEffect(() => {
+    // Skip initial render and when loading
+    if (isLoading || !progress) return;
+
+    console.log("Current step changed to:", currentStep);
+
+    // Update the database with the new step
+    const updateStep = async () => {
+      try {
+        // Update onboarding_progress table
+        const { error: progressError } = await supabase
+          .from("onboarding_progress")
+          .update({
+            current_step: currentStep,
+            last_updated: new Date().toISOString(),
+          })
+          .eq("id", progress.id);
+
+        if (progressError) {
+          console.error(
+            "Error updating step in onboarding_progress:",
+            progressError,
+          );
+        } else {
+          console.log(
+            "Successfully updated step in onboarding_progress to:",
+            currentStep,
+          );
+        }
+
+        // Update subsidiaries table
+        const { error: subsidiaryError } = await supabase
+          .from("subsidiaries")
+          .update({
+            onboarding_step: currentStep,
+          })
+          .eq("id", subsidiary?.id);
+
+        if (subsidiaryError) {
+          console.error(
+            "Error updating step in subsidiaries:",
+            subsidiaryError,
+          );
+        } else {
+          console.log(
+            "Successfully updated step in subsidiaries to:",
+            currentStep,
+          );
+        }
+      } catch (error) {
+        console.error("Error in updateStep:", error);
+      }
+    };
+
+    updateStep();
+  }, [currentStep, progress, subsidiary, isLoading]);
+
   // Go to a specific step
   const goToStep = (step: OnboardingStep) => {
+    console.log("Going to step:", step);
     setCurrentStep(step);
+
+    // Save the new step to the database
+    if (progress) {
+      saveProgress(undefined, false).then(() => {
+        console.log("Step saved after goToStep:", step);
+      });
+    }
   };
 
   // Go to the next step
   const nextStep = () => {
     if (currentStep < OnboardingStep.REVIEW) {
-      setCurrentStep((prev) => (prev + 1) as OnboardingStep);
+      const newStep = (currentStep + 1) as OnboardingStep;
+      console.log("Going to next step:", newStep);
+      setCurrentStep(newStep);
+
+      // Save the new step to the database
+      if (progress) {
+        saveProgress(undefined, false).then(() => {
+          console.log("Step saved after nextStep:", newStep);
+        });
+      }
     }
   };
 
   // Go to the previous step
   const prevStep = () => {
     if (currentStep > OnboardingStep.COMPANY_INFO) {
-      setCurrentStep((prev) => (prev - 1) as OnboardingStep);
+      const newStep = (currentStep - 1) as OnboardingStep;
+      console.log("Going to previous step:", newStep);
+      setCurrentStep(newStep);
+
+      // Save the new step to the database
+      if (progress) {
+        saveProgress(undefined, false).then(() => {
+          console.log("Step saved after prevStep:", newStep);
+        });
+      }
     }
   };
 
@@ -244,6 +358,8 @@ export const OnboardingProvider = ({
 
     setIsSaving(true);
     try {
+      console.log("Saving progress with current step:", currentStep);
+
       // Use the latest form data if provided, otherwise use the state
       const newData = latestFormData || formData;
       console.log("New form data to save:", newData);
@@ -263,6 +379,7 @@ export const OnboardingProvider = ({
           : {};
       console.log("Validated form data for saving:", validFormData);
 
+      // Save to onboarding_progress table
       const { data, error } = await supabase
         .from("onboarding_progress")
         .update({
@@ -295,6 +412,8 @@ export const OnboardingProvider = ({
 
       if (subsidiaryError) {
         console.error("Error updating subsidiary step:", subsidiaryError);
+      } else {
+        console.log("Successfully updated subsidiary step to:", currentStep);
       }
 
       if (showToast) {
