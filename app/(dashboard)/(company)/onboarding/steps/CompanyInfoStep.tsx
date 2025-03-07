@@ -12,9 +12,19 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { FileUpload } from "@/components/FileUpload";
+import { useCompany } from "@/context/company-context";
+import {
+  OnboardingFileMetadata,
+  FileMetadata,
+  updateFileMetadata,
+  removeFileMetadata,
+} from "@/utils/file-upload";
+import { DocumentViewer } from "@/components/DocumentViewer";
 
 const formSchema = z.object({
   tax_number: z.string().min(1, "Steuernummer ist erforderlich"),
@@ -28,12 +38,16 @@ const formSchema = z.object({
   commercial_register_number: z
     .string()
     .min(1, "Handelsregisternummer ist erforderlich"),
+  commercial_register_file_url: z.string().optional().nullable(),
+  file_metadata: z.record(z.any()).optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export const CompanyInfoStep = () => {
   const { formData, updateFormData, saveProgress } = useOnboarding();
+  const { subsidiary } = useCompany();
+  const [fileMetadata, setFileMetadata] = useState<OnboardingFileMetadata>({});
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -45,6 +59,8 @@ export const CompanyInfoStep = () => {
       city: "",
       commercial_register: "",
       commercial_register_number: "",
+      commercial_register_file_url: null,
+      file_metadata: null,
     },
   });
 
@@ -59,13 +75,103 @@ export const CompanyInfoStep = () => {
         city: formData.city || "",
         commercial_register: formData.commercial_register || "",
         commercial_register_number: formData.commercial_register_number || "",
+        commercial_register_file_url:
+          formData.commercial_register_file_url || null,
+        file_metadata: formData.file_metadata || null,
       });
+
+      // Initialize file metadata if it exists
+      if (formData.file_metadata) {
+        setFileMetadata(formData.file_metadata as OnboardingFileMetadata);
+      }
     }
   }, [formData, form]);
 
   const onSubmit = async (values: FormValues) => {
+    // Include file metadata in the form data
+    values.file_metadata = fileMetadata;
+
     updateFormData(values);
     await saveProgress(values, true);
+  };
+
+  const handleFileUploadComplete = (fileData: {
+    signedUrl: string;
+    filePath: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }) => {
+    // Update the form with the file path
+    form.setValue("commercial_register_file_url", fileData.filePath);
+
+    // Update file metadata
+    const updatedMetadata = updateFileMetadata(
+      fileMetadata,
+      "commercial_register_document",
+      fileData,
+    );
+
+    setFileMetadata(updatedMetadata);
+
+    // Also update the form's file_metadata field
+    form.setValue("file_metadata", updatedMetadata);
+
+    // Get the current form values
+    const currentValues = form.getValues();
+
+    // Save the progress with the updated form values
+    updateFormData({
+      ...currentValues,
+      commercial_register_file_url: fileData.filePath,
+      file_metadata: updatedMetadata,
+    });
+
+    // Save to database
+    saveProgress(
+      {
+        ...currentValues,
+        commercial_register_file_url: fileData.filePath,
+        file_metadata: updatedMetadata,
+      },
+      false,
+    );
+  };
+
+  const handleFileRemove = () => {
+    // Clear the file path
+    form.setValue("commercial_register_file_url", null);
+
+    // Remove from file metadata
+    const updatedMetadata = removeFileMetadata(
+      fileMetadata,
+      "commercial_register_document",
+    );
+
+    setFileMetadata(updatedMetadata);
+
+    // Update the form's file_metadata field
+    form.setValue("file_metadata", updatedMetadata);
+
+    // Get the current form values
+    const currentValues = form.getValues();
+
+    // Save the progress with the updated form values
+    updateFormData({
+      ...currentValues,
+      commercial_register_file_url: null,
+      file_metadata: updatedMetadata,
+    });
+
+    // Save to database
+    saveProgress(
+      {
+        ...currentValues,
+        commercial_register_file_url: null,
+        file_metadata: updatedMetadata,
+      },
+      false,
+    );
   };
 
   return (
@@ -99,7 +205,7 @@ export const CompanyInfoStep = () => {
                 <FormItem>
                   <FormLabel>Straße</FormLabel>
                   <FormControl>
-                    <Input placeholder="Straße" {...field} />
+                    <Input placeholder="z.B. Musterstraße" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -113,7 +219,7 @@ export const CompanyInfoStep = () => {
                 <FormItem>
                   <FormLabel>Hausnummer</FormLabel>
                   <FormControl>
-                    <Input placeholder="Hausnummer" {...field} />
+                    <Input placeholder="z.B. 123" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -129,7 +235,7 @@ export const CompanyInfoStep = () => {
                 <FormItem>
                   <FormLabel>Postleitzahl</FormLabel>
                   <FormControl>
-                    <Input placeholder="PLZ" {...field} />
+                    <Input placeholder="z.B. 12345" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -143,7 +249,7 @@ export const CompanyInfoStep = () => {
                 <FormItem>
                   <FormLabel>Stadt</FormLabel>
                   <FormControl>
-                    <Input placeholder="Stadt" {...field} />
+                    <Input placeholder="z.B. Musterstadt" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -174,6 +280,85 @@ export const CompanyInfoStep = () => {
                 <FormControl>
                   <Input placeholder="z.B. HRB 123456" {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="commercial_register_file_url"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Handelsregisterauszug hochladen (optional)
+                </FormLabel>
+                <FormControl>
+                  <div className="space-y-4">
+                    {field.value &&
+                    fileMetadata.commercial_register_document ? (
+                      <div className="space-y-4">
+                        <div className="mb-2">
+                          <h4 className="mb-2 text-sm font-medium">
+                            Vorschau des Handelsregisterauszugs
+                          </h4>
+                          <DocumentViewer
+                            filePath={field.value}
+                            fileName={
+                              fileMetadata.commercial_register_document.fileName
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FileUpload
+                            folder="commercial_register"
+                            subsidiaryId={subsidiary?.id || ""}
+                            onUploadComplete={handleFileUploadComplete}
+                            onRemove={handleFileRemove}
+                            existingFileUrl={
+                              fileMetadata.commercial_register_document
+                                ?.signedUrl
+                            }
+                            existingFilePath={
+                              fileMetadata.commercial_register_document
+                                ?.filePath
+                            }
+                            existingFileName={
+                              fileMetadata.commercial_register_document
+                                ?.fileName
+                            }
+                            acceptedFileTypes="application/pdf"
+                            maxSizeMB={20}
+                            label="Handelsregisterauszug ersetzen"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <FileUpload
+                        folder="commercial_register"
+                        subsidiaryId={subsidiary?.id || ""}
+                        onUploadComplete={handleFileUploadComplete}
+                        onRemove={handleFileRemove}
+                        existingFileUrl={
+                          fileMetadata.commercial_register_document?.signedUrl
+                        }
+                        existingFilePath={
+                          fileMetadata.commercial_register_document?.filePath
+                        }
+                        existingFileName={
+                          fileMetadata.commercial_register_document?.fileName
+                        }
+                        acceptedFileTypes="application/pdf"
+                        maxSizeMB={20}
+                        label="Handelsregisterauszug hochladen"
+                      />
+                    )}
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Laden Sie hier Ihren Handelsregisterauszug als PDF-Dokument
+                  hoch.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

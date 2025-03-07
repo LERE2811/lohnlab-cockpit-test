@@ -13,6 +13,7 @@ export interface OnboardingFileMetadata {
   givve_company_logo?: FileMetadata;
   givve_card_design?: FileMetadata;
   collective_agreement_document?: FileMetadata;
+  commercial_register_document?: FileMetadata;
   [key: string]: FileMetadata | undefined;
 }
 

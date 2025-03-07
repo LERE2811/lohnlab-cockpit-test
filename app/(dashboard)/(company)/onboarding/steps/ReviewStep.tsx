@@ -168,6 +168,26 @@ export const ReviewStep = () => {
                 Handelsregisternummer
               </dt>
               <dd className="text-sm">{formData.commercial_register_number}</dd>
+
+              {formData.commercial_register_file_url &&
+                formData.file_metadata?.commercial_register_document && (
+                  <>
+                    <dt className="text-sm font-medium text-muted-foreground">
+                      Handelsregisterauszug
+                    </dt>
+                    <dd className="text-sm">
+                      <div className="mt-2">
+                        <DocumentViewer
+                          filePath={formData.commercial_register_file_url}
+                          fileName={
+                            formData.file_metadata.commercial_register_document
+                              .fileName
+                          }
+                        />
+                      </div>
+                    </dd>
+                  </>
+                )}
             </dl>
           </CardContent>
         </Card>
