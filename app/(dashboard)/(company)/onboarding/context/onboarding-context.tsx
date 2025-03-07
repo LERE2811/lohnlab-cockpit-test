@@ -90,8 +90,6 @@ export const OnboardingProvider = ({
 
       setIsLoading(true);
       try {
-        console.log("Loading progress for subsidiary:", subsidiary.id);
-
         // Check if there's existing progress for this subsidiary
         const { data, error } = await supabase
           .from("onboarding_progress")
@@ -111,8 +109,6 @@ export const OnboardingProvider = ({
           return;
         }
 
-        console.log("Progress data:", data);
-
         // If we have existing progress, use it
         if (data && data.length > 0) {
           const progressData = data[0];
@@ -120,7 +116,6 @@ export const OnboardingProvider = ({
 
           // Ensure form_data is an object, not null
           const formDataFromProgress = progressData.form_data || {};
-          console.log("Form data from progress:", formDataFromProgress);
 
           // If we have file metadata, regenerate signed URLs
           if (formDataFromProgress.file_metadata) {
@@ -141,24 +136,12 @@ export const OnboardingProvider = ({
 
           // Map legacy step numbers to the new enum if needed
           const mappedStep = mapLegacyStep(progressData.current_step);
-          console.log(
-            "Original step from database:",
-            progressData.current_step,
-          );
-          console.log("Mapped step:", mappedStep);
           setCurrentStep(mappedStep);
 
           // Also check the subsidiary's onboarding_step for consistency
-          console.log(
-            "Subsidiary onboarding_step:",
-            subsidiary.onboarding_step,
-          );
 
           // If there's a mismatch between progress and subsidiary, update the subsidiary
           if (subsidiary.onboarding_step !== mappedStep) {
-            console.log(
-              "Mismatch between progress step and subsidiary step, updating subsidiary",
-            );
             const { error: updateError } = await supabase
               .from("subsidiaries")
               .update({
@@ -173,7 +156,6 @@ export const OnboardingProvider = ({
 
           setIsLoading(false);
         } else {
-          console.log("No existing progress found, creating new entry");
           // Only create a new progress entry if none exists
           const initialFormData = {}; // Empty object for initial form data
 
@@ -195,7 +177,6 @@ export const OnboardingProvider = ({
               variant: "destructive",
             });
           } else {
-            console.log("New progress created:", newProgress);
             setProgress(newProgress);
             setFormData(initialFormData);
           }
@@ -215,16 +196,31 @@ export const OnboardingProvider = ({
     // Skip initial render and when loading
     if (isLoading || !progress) return;
 
-    console.log("Current step changed to:", currentStep);
-
     // Update the database with the new step
     const updateStep = async () => {
       try {
-        // Update onboarding_progress table
+        // First, get the latest form data from the database
+        const { data: latestData, error: fetchError } = await supabase
+          .from("onboarding_progress")
+          .select("form_data")
+          .eq("id", progress.id)
+          .single();
+
+        if (fetchError) {
+          console.error("Error fetching latest form data:", fetchError);
+          return;
+        }
+
+        // Use the latest form data from the database, or fall back to the current state
+        const latestFormData = latestData?.form_data || formData;
+
+        // Update onboarding_progress table with current step while preserving form data
         const { error: progressError } = await supabase
           .from("onboarding_progress")
           .update({
             current_step: currentStep,
+            // Use the latest form data to ensure it's not lost
+            form_data: latestFormData,
             last_updated: new Date().toISOString(),
           })
           .eq("id", progress.id);
@@ -233,11 +229,6 @@ export const OnboardingProvider = ({
           console.error(
             "Error updating step in onboarding_progress:",
             progressError,
-          );
-        } else {
-          console.log(
-            "Successfully updated step in onboarding_progress to:",
-            currentStep,
           );
         }
 
@@ -254,11 +245,6 @@ export const OnboardingProvider = ({
             "Error updating step in subsidiaries:",
             subsidiaryError,
           );
-        } else {
-          console.log(
-            "Successfully updated step in subsidiaries to:",
-            currentStep,
-          );
         }
       } catch (error) {
         console.error("Error in updateStep:", error);
@@ -270,14 +256,39 @@ export const OnboardingProvider = ({
 
   // Go to a specific step
   const goToStep = (step: OnboardingStep) => {
-    console.log("Going to step:", step);
-    setCurrentStep(step);
-
-    // Save the new step to the database
+    // First save the current form data to ensure it's not lost
     if (progress) {
-      saveProgress(undefined, false).then(() => {
-        console.log("Step saved after goToStep:", step);
-      });
+      // Create a deep copy of the current form data
+      const currentFormData = JSON.parse(JSON.stringify(formData));
+
+      // Update the database with the current form data
+      const saveCurrentData = async () => {
+        try {
+          const { error } = await supabase
+            .from("onboarding_progress")
+            .update({
+              form_data: currentFormData,
+              last_updated: new Date().toISOString(),
+            })
+            .eq("id", progress.id);
+
+          if (error) {
+            console.error("Error saving form data before step change:", error);
+          } else {
+            // Now it's safe to change the step
+            setCurrentStep(step);
+          }
+        } catch (error) {
+          console.error("Error in saveCurrentData:", error);
+          // Still change the step even if there was an error
+          setCurrentStep(step);
+        }
+      };
+
+      saveCurrentData();
+    } else {
+      // If there's no progress record, just change the step
+      setCurrentStep(step);
     }
   };
 
@@ -285,14 +296,43 @@ export const OnboardingProvider = ({
   const nextStep = () => {
     if (currentStep < OnboardingStep.REVIEW) {
       const newStep = (currentStep + 1) as OnboardingStep;
-      console.log("Going to next step:", newStep);
-      setCurrentStep(newStep);
 
-      // Save the new step to the database
+      // First save the current form data to ensure it's not lost
       if (progress) {
-        saveProgress(undefined, false).then(() => {
-          console.log("Step saved after nextStep:", newStep);
-        });
+        // Create a deep copy of the current form data
+        const currentFormData = JSON.parse(JSON.stringify(formData));
+
+        // Update the database with the current form data
+        const saveCurrentData = async () => {
+          try {
+            const { error } = await supabase
+              .from("onboarding_progress")
+              .update({
+                form_data: currentFormData,
+                last_updated: new Date().toISOString(),
+              })
+              .eq("id", progress.id);
+
+            if (error) {
+              console.error(
+                "Error saving form data before step change:",
+                error,
+              );
+            } else {
+              // Now it's safe to change the step
+              setCurrentStep(newStep);
+            }
+          } catch (error) {
+            console.error("Error in saveCurrentData:", error);
+            // Still change the step even if there was an error
+            setCurrentStep(newStep);
+          }
+        };
+
+        saveCurrentData();
+      } else {
+        // If there's no progress record, just change the step
+        setCurrentStep(newStep);
       }
     }
   };
@@ -301,22 +341,49 @@ export const OnboardingProvider = ({
   const prevStep = () => {
     if (currentStep > OnboardingStep.COMPANY_INFO) {
       const newStep = (currentStep - 1) as OnboardingStep;
-      console.log("Going to previous step:", newStep);
-      setCurrentStep(newStep);
 
-      // Save the new step to the database
+      // First save the current form data to ensure it's not lost
       if (progress) {
-        saveProgress(undefined, false).then(() => {
-          console.log("Step saved after prevStep:", newStep);
-        });
+        // Create a deep copy of the current form data
+        const currentFormData = JSON.parse(JSON.stringify(formData));
+
+        // Update the database with the current form data
+        const saveCurrentData = async () => {
+          try {
+            const { error } = await supabase
+              .from("onboarding_progress")
+              .update({
+                form_data: currentFormData,
+                last_updated: new Date().toISOString(),
+              })
+              .eq("id", progress.id);
+
+            if (error) {
+              console.error(
+                "Error saving form data before step change:",
+                error,
+              );
+            } else {
+              // Now it's safe to change the step
+              setCurrentStep(newStep);
+            }
+          } catch (error) {
+            console.error("Error in saveCurrentData:", error);
+            // Still change the step even if there was an error
+            setCurrentStep(newStep);
+          }
+        };
+
+        saveCurrentData();
+      } else {
+        // If there's no progress record, just change the step
+        setCurrentStep(newStep);
       }
     }
   };
 
   // Update form data
   const updateFormData = (data: Record<string, any>) => {
-    console.log("Updating form data with:", data);
-
     // Validate the incoming data
     if (!data || typeof data !== "object") {
       console.error("Invalid data provided to updateFormData:", data);
@@ -328,8 +395,6 @@ export const OnboardingProvider = ({
       Object.entries(data).filter(([_, v]) => v !== undefined),
     );
 
-    console.log("Cleaned data for update:", cleanedData);
-
     setFormData((prev) => {
       // Create a deep copy of the previous state to avoid reference issues
       const prevCopy = { ...prev };
@@ -340,8 +405,6 @@ export const OnboardingProvider = ({
         ...cleanedData,
       };
 
-      console.log("Previous form data:", prevCopy);
-      console.log("Updated form data:", updated);
       return updated;
     });
   };
@@ -358,26 +421,23 @@ export const OnboardingProvider = ({
 
     setIsSaving(true);
     try {
-      console.log("Saving progress with current step:", currentStep);
-
       // Use the latest form data if provided, otherwise use the state
       const newData = latestFormData || formData;
-      console.log("New form data to save:", newData);
+
+      // Create a deep copy to avoid reference issues
+      const newDataCopy = JSON.parse(JSON.stringify(newData));
 
       // Merge with existing form data instead of replacing it
       const mergedFormData = {
         ...formData, // Start with current state
-        ...newData, // Override with new data
+        ...newDataCopy, // Override with new data
       };
-
-      console.log("Merged form data for saving:", mergedFormData);
 
       // Ensure formData is a valid object
       const validFormData =
         mergedFormData && typeof mergedFormData === "object"
           ? mergedFormData
           : {};
-      console.log("Validated form data for saving:", validFormData);
 
       // Save to onboarding_progress table
       const { data, error } = await supabase
@@ -400,8 +460,6 @@ export const OnboardingProvider = ({
         return;
       }
 
-      console.log("Save response data:", data);
-
       // Also update the subsidiary table with the current step
       const { error: subsidiaryError } = await supabase
         .from("subsidiaries")
@@ -412,8 +470,6 @@ export const OnboardingProvider = ({
 
       if (subsidiaryError) {
         console.error("Error updating subsidiary step:", subsidiaryError);
-      } else {
-        console.log("Successfully updated subsidiary step to:", currentStep);
       }
 
       if (showToast) {
@@ -436,9 +492,6 @@ export const OnboardingProvider = ({
       if (verifyError) {
         console.error("Error verifying saved data:", verifyError);
       } else {
-        console.log("Verified saved data:", verifyData);
-        console.log("Verified form_data:", verifyData.form_data);
-
         // Update local state if the data from the server is different
         if (
           JSON.stringify(verifyData.form_data) !== JSON.stringify(validFormData)

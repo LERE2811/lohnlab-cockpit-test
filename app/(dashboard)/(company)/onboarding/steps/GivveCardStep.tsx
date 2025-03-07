@@ -204,6 +204,44 @@ export const GivveCardStep = () => {
     }
   }, [formData, form]);
 
+  // Watch for changes to the form values and save them
+  useEffect(() => {
+    // Skip the initial render
+    const subscription = form.watch((value) => {
+      // Only save if the form is dirty (has been changed)
+      if (form.formState.isDirty) {
+        // Get the current values
+        const currentValues = form.getValues();
+
+        // If has_givve_card is false, reset the other fields
+        if (!currentValues.has_givve_card) {
+          currentValues.givve_legal_form = null;
+          currentValues.givve_card_design_type = null;
+          currentValues.givve_company_logo_url = null;
+          currentValues.givve_card_design_url = null;
+          currentValues.givve_standard_postal_code = null;
+          currentValues.givve_card_second_line = null;
+          currentValues.givve_loading_date = null;
+          currentValues.givve_industry_category = null;
+          currentValues.file_metadata = null;
+        } else {
+          // Include file metadata in the form data
+          currentValues.file_metadata = fileMetadata;
+        }
+
+        // Update the form data in the context
+        updateFormData(currentValues);
+
+        // Save to database (without showing a toast)
+        saveProgress(currentValues, false);
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => subscription.unsubscribe();
+  }, [form, fileMetadata, updateFormData, saveProgress]);
+
+  // Handle form submission
   const onSubmit = async (values: FormValues) => {
     // If has_givve_card is false, reset the other fields
     if (!values.has_givve_card) {
@@ -246,6 +284,26 @@ export const GivveCardStep = () => {
 
     // Also update the form's file_metadata field
     form.setValue("file_metadata", updatedMetadata);
+
+    // Get the current form values
+    const currentValues = form.getValues();
+
+    // Save the progress with the updated form values
+    updateFormData({
+      ...currentValues,
+      givve_company_logo_url: fileData.filePath,
+      file_metadata: updatedMetadata,
+    });
+
+    // Save to database
+    saveProgress(
+      {
+        ...currentValues,
+        givve_company_logo_url: fileData.filePath,
+        file_metadata: updatedMetadata,
+      },
+      false,
+    );
   };
 
   const handleLogoRemove = () => {
@@ -262,6 +320,26 @@ export const GivveCardStep = () => {
 
     // Update the form's file_metadata field
     form.setValue("file_metadata", updatedMetadata);
+
+    // Get the current form values
+    const currentValues = form.getValues();
+
+    // Save the progress with the updated form values
+    updateFormData({
+      ...currentValues,
+      givve_company_logo_url: null,
+      file_metadata: updatedMetadata,
+    });
+
+    // Save to database
+    saveProgress(
+      {
+        ...currentValues,
+        givve_company_logo_url: null,
+        file_metadata: updatedMetadata,
+      },
+      false,
+    );
   };
 
   const handleDesignUploadComplete = (fileData: {
@@ -285,6 +363,26 @@ export const GivveCardStep = () => {
 
     // Also update the form's file_metadata field
     form.setValue("file_metadata", updatedMetadata);
+
+    // Get the current form values
+    const currentValues = form.getValues();
+
+    // Save the progress with the updated form values
+    updateFormData({
+      ...currentValues,
+      givve_card_design_url: fileData.filePath,
+      file_metadata: updatedMetadata,
+    });
+
+    // Save to database
+    saveProgress(
+      {
+        ...currentValues,
+        givve_card_design_url: fileData.filePath,
+        file_metadata: updatedMetadata,
+      },
+      false,
+    );
   };
 
   const handleDesignRemove = () => {
@@ -301,6 +399,26 @@ export const GivveCardStep = () => {
 
     // Update the form's file_metadata field
     form.setValue("file_metadata", updatedMetadata);
+
+    // Get the current form values
+    const currentValues = form.getValues();
+
+    // Save the progress with the updated form values
+    updateFormData({
+      ...currentValues,
+      givve_card_design_url: null,
+      file_metadata: updatedMetadata,
+    });
+
+    // Save to database
+    saveProgress(
+      {
+        ...currentValues,
+        givve_card_design_url: null,
+        file_metadata: updatedMetadata,
+      },
+      false,
+    );
   };
 
   return (
