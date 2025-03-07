@@ -1,220 +1,185 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useOnboarding } from "@/context/onboarding-context";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useOnboarding } from "../context/onboarding-context";
+import { StepLayout } from "../components/StepLayout";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Loader2, Upload } from "lucide-react";
-import { supabase } from "@/utils/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { useCompany } from "@/context/company-context";
+import { useEffect } from "react";
 
-export default function CompanyInfoStep() {
+const formSchema = z.object({
+  tax_number: z.string().min(1, "Steuernummer ist erforderlich"),
+  street: z.string().min(1, "Straße ist erforderlich"),
+  house_number: z.string().min(1, "Hausnummer ist erforderlich"),
+  postal_code: z
+    .string()
+    .min(5, "Postleitzahl muss mindestens 5 Zeichen haben"),
+  city: z.string().min(1, "Stadt ist erforderlich"),
+  commercial_register: z.string().min(1, "Handelsregister ist erforderlich"),
+  commercial_register_number: z
+    .string()
+    .min(1, "Handelsregisternummer ist erforderlich"),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+export const CompanyInfoStep = () => {
   const { formData, updateFormData, saveProgress } = useOnboarding();
-  const { company } = useCompany();
-  const { toast } = useToast();
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
-  // Load logo preview when component mounts or formData changes
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      tax_number: "",
+      street: "",
+      house_number: "",
+      postal_code: "",
+      city: "",
+      commercial_register: "",
+      commercial_register_number: "",
+    },
+  });
+
+  // Load existing data into the form
   useEffect(() => {
-    const loadLogoPreview = async () => {
-      if (formData.companyInfo.logo_url) {
-        try {
-          // Extract the path from the stored URL
-          const path = formData.companyInfo.logo_url;
-
-          // If it's a path to a file in the bucket
-          if (path.includes("company_logos/")) {
-            // Get the file name from the path
-            const fileName = path.split("/").pop();
-
-            // Generate a signed URL that expires in 1 hour
-            const { data, error } = await supabase.storage
-              .from("company_logos")
-              .createSignedUrl(fileName || "", 3600);
-
-            if (error) {
-              console.error("Error creating signed URL:", error);
-              return;
-            }
-
-            if (data?.signedUrl) {
-              setLogoPreview(data.signedUrl);
-            }
-          }
-        } catch (error) {
-          console.error("Error loading logo preview:", error);
-        }
-      } else {
-        // Reset preview when there's no logo URL
-        setLogoPreview(null);
-      }
-    };
-
-    loadLogoPreview();
-  }, [formData.companyInfo.logo_url, company?.id]);
-
-  // Funktion zum Hochladen des Logos
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!company) {
-      toast({
-        title: "Fehler",
-        description: "Unternehmensdaten konnten nicht geladen werden",
-        className: "border-red-500",
+    if (formData) {
+      form.reset({
+        tax_number: formData.tax_number || "",
+        street: formData.street || "",
+        house_number: formData.house_number || "",
+        postal_code: formData.postal_code || "",
+        city: formData.city || "",
+        commercial_register: formData.commercial_register || "",
+        commercial_register_number: formData.commercial_register_number || "",
       });
-      return;
     }
+  }, [formData, form]);
 
-    // Überprüfe die Dateigröße (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        title: "Fehler",
-        description: "Die Datei ist zu groß. Maximale Größe: 2MB",
-        className: "border-red-500",
-      });
-      return;
-    }
-
-    setLogoFile(file);
-    setIsUploading(true);
-
-    try {
-      // Erstelle eine Vorschau des Bildes
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-
-      // Generiere einen eindeutigen Dateinamen
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${company.id}_logo_${Date.now()}.${fileExt}`;
-
-      // Upload zur Supabase Storage
-      const { data, error } = await supabase.storage
-        .from("company_logos")
-        .upload(fileName, file, {
-          cacheControl: "3600",
-          upsert: true,
-        });
-
-      if (error) throw error;
-
-      // Store the path to the file instead of a public URL
-      const filePath = `company_logos/${fileName}`;
-
-      // Generate a signed URL for immediate preview
-      const { data: signedUrlData, error: signedUrlError } =
-        await supabase.storage
-          .from("company_logos")
-          .createSignedUrl(fileName, 3600);
-
-      if (signedUrlError) {
-        console.error("Error creating signed URL:", signedUrlError);
-      } else if (signedUrlData?.signedUrl) {
-        setLogoPreview(signedUrlData.signedUrl);
-      }
-
-      // Aktualisiere die Formulardaten mit dem Dateipfad
-      updateFormData("companyInfo", {
-        logo_url: filePath,
-      });
-
-      // Speichere den Fortschritt
-      await saveProgress();
-
-      toast({
-        title: "Erfolg",
-        description: "Logo wurde erfolgreich hochgeladen",
-        className: "border-green-500",
-      });
-    } catch (error) {
-      console.error("Error uploading logo:", error);
-      toast({
-        title: "Fehler",
-        description: "Beim Hochladen des Logos ist ein Fehler aufgetreten",
-        className: "border-red-500",
-      });
-    } finally {
-      setIsUploading(false);
-    }
+  const onSubmit = async (values: FormValues) => {
+    updateFormData(values);
+    await saveProgress(values, true);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="company-name">Unternehmensname*</Label>
-        <Input
-          id="company-name"
-          value={formData.companyInfo.name}
-          onChange={(e) =>
-            updateFormData("companyInfo", { name: e.target.value })
-          }
-          placeholder="Name Ihres Unternehmens"
-          required
-        />
-      </div>
+    <StepLayout
+      title="Unternehmensinformationen"
+      description="Bitte geben Sie die grundlegenden Informationen zu Ihrer Gesellschaft ein."
+      onSave={form.handleSubmit(onSubmit)}
+      disableNext={!form.formState.isValid}
+    >
+      <Form {...form}>
+        <div className="space-y-4">
+          <FormField
+            control={form.control}
+            name="tax_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Steuernummer</FormLabel>
+                <FormControl>
+                  <Input placeholder="z.B. 123/456/78901" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div className="space-y-2">
-        <Label htmlFor="tax-number">Steuernummer*</Label>
-        <Input
-          id="tax-number"
-          value={formData.companyInfo.tax_number}
-          onChange={(e) =>
-            updateFormData("companyInfo", { tax_number: e.target.value })
-          }
-          placeholder="z.B. 123/456/78901"
-          required
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="logo">Firmenlogo</Label>
-        <div className="flex items-center gap-4">
-          {logoPreview && (
-            <div className="h-24 w-24 overflow-hidden rounded-md border">
-              <img
-                src={logoPreview}
-                alt="Firmenlogo Vorschau"
-                className="h-full w-full object-contain"
-              />
-            </div>
-          )}
-          <div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => document.getElementById("logo-upload")?.click()}
-              className="flex items-center gap-2"
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="street"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Straße</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Straße" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              {isUploading ? "Wird hochgeladen..." : "Logo hochladen"}
-            </Button>
-            <input
-              id="logo-upload"
-              type="file"
-              accept="image/*"
-              onChange={handleLogoUpload}
-              className="hidden"
-              disabled={isUploading}
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Empfohlene Größe: 200x200 Pixel, max. 2MB
-            </p>
+
+            <FormField
+              control={form.control}
+              name="house_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Hausnummer</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Hausnummer" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="postal_code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Postleitzahl</FormLabel>
+                  <FormControl>
+                    <Input placeholder="PLZ" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stadt</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Stadt" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="commercial_register"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Handelsregister</FormLabel>
+                <FormControl>
+                  <Input placeholder="z.B. Amtsgericht München" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="commercial_register_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Handelsregisternummer</FormLabel>
+                <FormControl>
+                  <Input placeholder="z.B. HRB 123456" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
-      </div>
-    </div>
+      </Form>
+    </StepLayout>
   );
-}
+};

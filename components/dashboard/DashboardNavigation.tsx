@@ -18,6 +18,8 @@ import {
   X,
   ChevronDown,
   Building,
+  ClipboardList,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -91,47 +93,73 @@ const sidebarAdminItems: SidebarItem[] = [
 
 export function OnboardingBanner() {
   const router = useRouter();
-  const { company, isLoading } = useCompany();
+  const { company, subsidiary, isLoading } = useCompany();
   const [dismissed, setDismissed] = useState(false);
 
-  // Wenn die Daten noch geladen werden oder das Onboarding bereits abgeschlossen ist, zeige nichts an
-  if (isLoading || !company || company.onboarding_completed || dismissed) {
+  // Don't show the banner if data is still loading or onboarding is completed or dismissed
+  if (
+    isLoading ||
+    !subsidiary ||
+    subsidiary.onboarding_completed ||
+    dismissed
+  ) {
     return null;
   }
 
-  const navigateToOnboarding = () => {
-    router.push("/onboarding");
-  };
+  // Calculate progress percentage based on the current step
+  const totalSteps = 9; // Total number of onboarding steps
+  const currentStep = subsidiary.onboarding_step || 1;
+  const progressPercentage = Math.round((currentStep / totalSteps) * 100);
 
   return (
-    <div className="w-full border-b border-amber-200 bg-amber-50">
-      <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        <div className="flex items-center space-x-3">
-          <AlertCircle className="h-5 w-5 text-amber-500" />
-          <p className="text-sm font-medium text-amber-800">
-            Das Onboarding für {company.name} ist noch nicht abgeschlossen.
-            Bitte vervollständigen Sie den Prozess, um alle Funktionen nutzen zu
-            können.
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={navigateToOnboarding}
-            className="border-amber-300 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
-          >
-            Onboarding fortsetzen
-          </Button>
+    <div className="w-full border-b border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+      <div className="container mx-auto px-4 py-3">
+        <div className="relative">
           <Button
             variant="ghost"
             size="icon"
+            className="absolute right-0 top-0 h-6 w-6 rounded-full p-0 text-blue-500 opacity-70 hover:bg-blue-100 hover:opacity-100 dark:text-blue-300 dark:hover:bg-blue-900/50"
             onClick={() => setDismissed(true)}
-            className="text-amber-500 hover:bg-amber-100 hover:text-amber-700"
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Schließen</span>
+            <span className="sr-only">Dismiss</span>
           </Button>
+
+          <div className="flex flex-col space-y-3 pr-8 sm:flex-row sm:items-center sm:space-x-4 sm:space-y-0">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-800">
+              <ClipboardList className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+            </div>
+
+            <div className="flex-1">
+              <h5 className="mb-1 text-base font-medium text-blue-800 dark:text-blue-200">
+                Onboarding für {subsidiary.name} nicht abgeschlossen
+              </h5>
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                Sie haben das Onboarding für {subsidiary.name} begonnen, aber
+                noch nicht abgeschlossen. Aktueller Fortschritt:{" "}
+                {progressPercentage}%
+              </p>
+
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-800">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all duration-500 dark:bg-blue-400"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="flex-shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-blue-500 bg-white text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                onClick={() => router.push(`/onboarding`)}
+              >
+                Onboarding fortsetzen
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

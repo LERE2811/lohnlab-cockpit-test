@@ -313,3 +313,13 @@ export const useCompany = () => {
   }
   return context;
 };
+
+export const useSubsidiaries = async () => {
+  const { company } = useCompany();
+  const { data: subsidiaries, error } = await supabase
+    .from("subsidiaries")
+    .select("*")
+    .eq("company_id", company?.id);
+
+  return { subsidiaries, error };
+};

@@ -1,383 +1,467 @@
 "use client";
 
-import { useOnboarding } from "@/context/onboarding-context";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { useOnboarding } from "../context/onboarding-context";
+import { StepLayout } from "../components/StepLayout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { useCompany } from "@/context/company-context";
+import {
+  CollectiveAgreementTypes,
+  GivveCardDesignTypes,
+  PayrollProcessing,
+} from "@/shared/model";
 
-export default function ReviewStep() {
-  const { formData } = useOnboarding();
+export const ReviewStep = () => {
+  const { formData, completeOnboarding } = useOnboarding();
+  const { subsidiary } = useCompany();
 
-  // Validierungsfunktionen für jeden Schritt
-  const validateCompanyInfo = () => {
-    const { name, tax_number } = formData.companyInfo;
-    return !!name && !!tax_number;
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "";
+    try {
+      return new Date(dateString).toLocaleDateString("de-DE");
+    } catch (e) {
+      return dateString;
+    }
   };
 
-  const validateAddress = () => {
-    const { street, house_number, postal_code, city } = formData.address;
-    return !!street && !!house_number && !!postal_code && !!city;
-  };
-
-  const validateCommercialRegister = () => {
-    const { commercial_register, commercial_register_number } =
-      formData.commercialRegister;
-    return !!commercial_register && !!commercial_register_number;
-  };
-
-  const validateManagingDirectors = () => {
-    return (
-      formData.managingDirectors.length > 0 &&
-      formData.managingDirectors.every(
-        (director) => !!director.firstname && !!director.lastname,
-      )
-    );
-  };
-
-  const validatePayrollInfo = () => {
-    const { payroll_processing, payroll_system, payroll_contacts } =
-      formData.payrollInfo;
-
-    const hasValidContacts =
-      payroll_contacts.length > 0 &&
-      payroll_contacts.every(
-        (contact) =>
-          !!contact.firstname && !!contact.lastname && !!contact.email,
-      );
-
-    return !!payroll_processing && !!payroll_system && hasValidContacts;
-  };
-
-  // Prüfe, ob alle Schritte vollständig sind
-  const allStepsComplete = () => {
-    return (
-      validateCompanyInfo() &&
-      validateAddress() &&
-      validateCommercialRegister() &&
-      validateManagingDirectors() &&
-      validatePayrollInfo()
-    );
-  };
-
-  // Formatierungsfunktionen für die Anzeige
-  const formatPayrollProcessing = (processing: string | undefined) => {
-    switch (processing) {
-      case "Intern":
-        return "Intern";
-      case "Extern":
-        return "Extern";
+  const getPayrollProcessingText = (value: string) => {
+    switch (value) {
+      case PayrollProcessing.INTERNAL:
+        return "Intern (durch eigene Mitarbeiter)";
+      case PayrollProcessing.EXTERNAL:
+        return "Extern (durch Steuerberater oder Dienstleister)";
       default:
         return "Nicht angegeben";
     }
   };
 
-  const formatPayrollSystem = (system: string) => {
-    switch (system) {
-      case "DATEV":
-      case "Lexware":
-      case "Sage":
-      case "Lohn AG":
-      case "Addison":
-        return system;
-      case "Andere":
-        return "Andere";
+  const getCollectiveAgreementTypeText = (value: string) => {
+    switch (value) {
+      case CollectiveAgreementTypes.COMPANY_AGREEMENT:
+        return "Haustarifvertrag";
+      case CollectiveAgreementTypes.INDUSTRY_AGREEMENT:
+        return "Flächentarifvertrag";
       default:
         return "Nicht angegeben";
     }
   };
 
-  // Generiere eine Liste der fehlenden Felder
-  const getMissingFields = () => {
-    const missingFields = [];
-
-    if (!validateCompanyInfo()) {
-      missingFields.push("Unternehmensinformationen");
+  const getGivveCardDesignTypeText = (value: string) => {
+    switch (value) {
+      case GivveCardDesignTypes.STANDARD_CARD:
+        return "Standardkarte";
+      case GivveCardDesignTypes.LOGO_CARD:
+        return "Logokarte";
+      case GivveCardDesignTypes.DESIGN_CARD:
+        return "Designkarte";
+      default:
+        return "Nicht angegeben";
     }
-    if (!validateAddress()) {
-      missingFields.push("Adresse");
-    }
-    if (!validateCommercialRegister()) {
-      missingFields.push("Handelsregister");
-    }
-    if (!validateManagingDirectors()) {
-      missingFields.push("Geschäftsführer");
-    }
-    if (!validatePayrollInfo()) {
-      missingFields.push("Lohnabrechnung");
-    }
-
-    return missingFields;
   };
-
-  const missingFields = getMissingFields();
 
   return (
-    <div className="space-y-6">
-      <p className="text-lg">
-        Bitte überprüfen Sie alle eingegebenen Informationen, bevor Sie das
-        Onboarding abschließen.
-      </p>
+    <StepLayout
+      title="Überprüfung & Abschluss"
+      description="Bitte überprüfen Sie alle eingegebenen Informationen und schließen Sie das Onboarding ab."
+      onComplete={completeOnboarding}
+    >
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Unternehmensinformationen</CardTitle>
+            <CardDescription>
+              Grundlegende Informationen zu Ihrer Gesellschaft
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+              <dt className="text-sm font-medium text-muted-foreground">
+                Name
+              </dt>
+              <dd className="text-sm">{subsidiary?.name}</dd>
 
-      {/* Zusammenfassung des Validierungsstatus */}
-      {missingFields.length > 0 && (
-        <div className="rounded-md bg-amber-50 p-4 text-amber-700">
-          <div className="flex">
-            <AlertCircle className="mr-2 h-5 w-5" />
-            <div>
-              <p className="font-medium">
-                Folgende Abschnitte sind unvollständig:
-              </p>
-              <ul className="mt-2 list-inside list-disc">
-                {missingFields.map((field) => (
-                  <li key={field}>{field}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
+              <dt className="text-sm font-medium text-muted-foreground">
+                Rechtsform
+              </dt>
+              <dd className="text-sm">{subsidiary?.legal_form}</dd>
 
-      {/* Unternehmensinformationen */}
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-4 font-medium">Unternehmensinformationen</h4>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Firmenname</p>
-            <p>{formData.companyInfo.name || "Nicht angegeben"}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Steuernummer</p>
-            <p>{formData.companyInfo.tax_number || "Nicht angegeben"}</p>
-          </div>
-        </div>
-        <div className="mt-2 flex items-center">
-          {validateCompanyInfo() ? (
-            <CheckCircle2 className="mr-2 h-5 w-5 text-green-500" />
-          ) : (
-            <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
-          )}
-          <span
-            className={
-              validateCompanyInfo() ? "text-green-500" : "text-red-500"
-            }
-          >
-            {validateCompanyInfo() ? "Vollständig" : "Unvollständig"}
-          </span>
-        </div>
-      </div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Steuernummer
+              </dt>
+              <dd className="text-sm">
+                {formData.tax_number || "Nicht angegeben"}
+              </dd>
 
-      {/* Adresse */}
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-4 font-medium">Adresse</h4>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Straße</p>
-            <p>{formData.address.street || "Nicht angegeben"}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Hausnummer</p>
-            <p>{formData.address.house_number || "Nicht angegeben"}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">PLZ</p>
-            <p>{formData.address.postal_code || "Nicht angegeben"}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Ort</p>
-            <p>{formData.address.city || "Nicht angegeben"}</p>
-          </div>
-        </div>
-        <div className="mt-2 flex items-center">
-          {validateAddress() ? (
-            <CheckCircle2 className="mr-2 h-5 w-5 text-green-500" />
-          ) : (
-            <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
-          )}
-          <span
-            className={validateAddress() ? "text-green-500" : "text-red-500"}
-          >
-            {validateAddress() ? "Vollständig" : "Unvollständig"}
-          </span>
-        </div>
-      </div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Adresse
+              </dt>
+              <dd className="text-sm">
+                {formData.street} {formData.house_number},{" "}
+                {formData.postal_code} {formData.city}
+              </dd>
 
-      {/* Handelsregister */}
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-4 font-medium">Handelsregister</h4>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Handelsregister</p>
-            <p>
-              {formData.commercialRegister.commercial_register ||
-                "Nicht angegeben"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">
-              Handelsregisternummer
-            </p>
-            <p>
-              {formData.commercialRegister.commercial_register_number ||
-                "Nicht angegeben"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-2 flex items-center">
-          {validateCommercialRegister() ? (
-            <CheckCircle2 className="mr-2 h-5 w-5 text-green-500" />
-          ) : (
-            <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
-          )}
-          <span
-            className={
-              validateCommercialRegister() ? "text-green-500" : "text-red-500"
-            }
-          >
-            {validateCommercialRegister() ? "Vollständig" : "Unvollständig"}
-          </span>
-        </div>
-      </div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Handelsregister
+              </dt>
+              <dd className="text-sm">{formData.commercial_register}</dd>
 
-      {/* Geschäftsführer */}
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-4 font-medium">Geschäftsführer</h4>
-        {formData.managingDirectors.length > 0 ? (
-          <div className="space-y-4">
-            {formData.managingDirectors.map((director, index) => (
-              <div key={director.id} className="rounded-lg border p-3">
-                <h6 className="mb-2 font-medium">
-                  Geschäftsführer {index + 1}
-                </h6>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Vorname</p>
-                    <p>{director.firstname}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">
-                      Nachname
-                    </p>
-                    <p>{director.lastname}</p>
-                  </div>
-                  {director.email && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">
-                        E-Mail
-                      </p>
-                      <p>{director.email}</p>
-                    </div>
-                  )}
-                  {director.phone && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">
-                        Telefon
-                      </p>
-                      <p>{director.phone}</p>
-                    </div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Handelsregisternummer
+              </dt>
+              <dd className="text-sm">{formData.commercial_register_number}</dd>
+            </dl>
+          </CardContent>
+        </Card>
+
+        {formData.managing_directors &&
+          formData.managing_directors.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Geschäftsführer</CardTitle>
+                <CardDescription>
+                  Informationen zu den Geschäftsführern
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {formData.managing_directors.map(
+                    (director: any, index: number) => (
+                      <div key={index} className="space-y-2">
+                        {index > 0 && <Separator className="my-4" />}
+                        <h4 className="font-medium">
+                          Geschäftsführer {index + 1}
+                        </h4>
+                        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Name
+                          </dt>
+                          <dd className="text-sm">
+                            {director.firstname} {director.lastname}
+                          </dd>
+
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            E-Mail
+                          </dt>
+                          <dd className="text-sm">
+                            {director.email || "Nicht angegeben"}
+                          </dd>
+
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Telefon
+                          </dt>
+                          <dd className="text-sm">
+                            {director.phone || "Nicht angegeben"}
+                          </dd>
+                        </dl>
+                      </div>
+                    ),
                   )}
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">
-            Keine Geschäftsführer angegeben
-          </p>
-        )}
-        <div className="mt-2 flex items-center">
-          {validateManagingDirectors() ? (
-            <CheckCircle2 className="mr-2 h-5 w-5 text-green-500" />
-          ) : (
-            <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
+              </CardContent>
+            </Card>
           )}
-          <span
-            className={
-              validateManagingDirectors() ? "text-green-500" : "text-red-500"
-            }
-          >
-            {validateManagingDirectors() ? "Vollständig" : "Unvollständig"}
-          </span>
-        </div>
-      </div>
 
-      {/* Lohnabrechnung */}
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-4 font-medium">Lohnabrechnung</h4>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <p className="text-sm font-medium text-gray-500">
-              Lohnabrechnung durchgeführt
-            </p>
-            <p>
-              {formatPayrollProcessing(formData.payrollInfo.payroll_processing)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">
-              Lohnabrechnungssystem
-            </p>
-            <p>
-              {formatPayrollSystem(formData.payrollInfo.payroll_system || "")}
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Lohnabrechnung</CardTitle>
+            <CardDescription>
+              Informationen zur Lohnabrechnung und den Ansprechpartnern
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="mb-4 grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+              <dt className="text-sm font-medium text-muted-foreground">
+                Art der Lohnabrechnung
+              </dt>
+              <dd className="text-sm">
+                {getPayrollProcessingText(formData.payroll_processing)}
+              </dd>
 
-        <h5 className="mb-2 mt-4 font-medium">
-          Ansprechpartner für Lohnabrechnung
-        </h5>
-        {formData.payrollInfo.payroll_contacts.length > 0 ? (
-          <div className="space-y-4">
-            {formData.payrollInfo.payroll_contacts.map((contact, index) => (
-              <div key={contact.id} className="rounded-lg border p-3">
-                <h6 className="mb-2 font-medium">
-                  Ansprechpartner {index + 1}
-                </h6>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Vorname</p>
-                    <p>{contact.firstname}</p>
+              {formData.payroll_processing === PayrollProcessing.INTERNAL &&
+                formData.payroll_system && (
+                  <>
+                    <dt className="text-sm font-medium text-muted-foreground">
+                      Lohnabrechnungssystem
+                    </dt>
+                    <dd className="text-sm">{formData.payroll_system}</dd>
+                  </>
+                )}
+            </dl>
+
+            {formData.payroll_contacts &&
+              formData.payroll_contacts.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-medium">
+                    {formData.payroll_processing === PayrollProcessing.INTERNAL
+                      ? "Ansprechpartner für die Lohnabrechnung"
+                      : "Externe Ansprechpartner für die Lohnabrechnung"}
+                  </h4>
+                  <div className="space-y-4">
+                    {formData.payroll_contacts.map(
+                      (contact: any, index: number) => (
+                        <div key={index} className="space-y-2">
+                          {index > 0 && <Separator className="my-4" />}
+                          <h5 className="text-sm font-medium">
+                            Ansprechpartner {index + 1}
+                          </h5>
+                          <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+                            {formData.payroll_processing ===
+                              PayrollProcessing.EXTERNAL &&
+                              contact.company_name && (
+                                <>
+                                  <dt className="text-sm font-medium text-muted-foreground">
+                                    Unternehmen / Kanzlei
+                                  </dt>
+                                  <dd className="text-sm">
+                                    {contact.company_name}
+                                  </dd>
+                                </>
+                              )}
+
+                            <dt className="text-sm font-medium text-muted-foreground">
+                              Name
+                            </dt>
+                            <dd className="text-sm">
+                              {contact.firstname} {contact.lastname}
+                            </dd>
+
+                            <dt className="text-sm font-medium text-muted-foreground">
+                              E-Mail
+                            </dt>
+                            <dd className="text-sm">{contact.email}</dd>
+
+                            <dt className="text-sm font-medium text-muted-foreground">
+                              Telefon
+                            </dt>
+                            <dd className="text-sm">
+                              {contact.phone || "Nicht angegeben"}
+                            </dd>
+                          </dl>
+                        </div>
+                      ),
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">
-                      Nachname
-                    </p>
-                    <p>{contact.lastname}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">E-Mail</p>
-                    <p>{contact.email}</p>
-                  </div>
-                  {contact.phone && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">
-                        Telefon
-                      </p>
-                      <p>{contact.phone}</p>
-                    </div>
+                </div>
+              )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Betriebsrat & Tarifbindung</CardTitle>
+            <CardDescription>
+              Informationen zu Betriebsrat und Tarifbindung
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+              <dt className="text-sm font-medium text-muted-foreground">
+                Betriebsrat vorhanden
+              </dt>
+              <dd className="text-sm">
+                {formData.has_works_council ? "Ja" : "Nein"}
+              </dd>
+
+              <dt className="text-sm font-medium text-muted-foreground">
+                Tarifbindung
+              </dt>
+              <dd className="text-sm">
+                {formData.has_collective_agreement ? "Ja" : "Nein"}
+              </dd>
+
+              {formData.has_collective_agreement &&
+                formData.collective_agreement_type && (
+                  <>
+                    <dt className="text-sm font-medium text-muted-foreground">
+                      Art der Tarifbindung
+                    </dt>
+                    <dd className="text-sm">
+                      {getCollectiveAgreementTypeText(
+                        formData.collective_agreement_type,
+                      )}
+                    </dd>
+                  </>
+                )}
+            </dl>
+          </CardContent>
+        </Card>
+
+        {formData.has_givve_card && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Givve Card</CardTitle>
+              <CardDescription>Informationen zur Givve Card</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Givve Card
+                </dt>
+                <dd className="text-sm">Ja</dd>
+
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Rechtsform für Givve
+                </dt>
+                <dd className="text-sm">
+                  {formData.givve_legal_form || "Nicht angegeben"}
+                </dd>
+
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Kartendesign
+                </dt>
+                <dd className="text-sm">
+                  {getGivveCardDesignTypeText(formData.givve_card_design_type)}
+                </dd>
+
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Zweite Zeile auf der Karte
+                </dt>
+                <dd className="text-sm">
+                  {formData.givve_card_second_line || "Nicht angegeben"}
+                </dd>
+
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Aufladedatum
+                </dt>
+                <dd className="text-sm">
+                  {formData.givve_loading_date
+                    ? `${formData.givve_loading_date}. des Monats`
+                    : "Nicht angegeben"}
+                </dd>
+              </dl>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Hauptniederlassung</CardTitle>
+            <CardDescription>
+              Informationen zur Hauptniederlassung
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+              {formData.headquarters_name && (
+                <>
+                  <dt className="text-sm font-medium text-muted-foreground">
+                    Bezeichnung
+                  </dt>
+                  <dd className="text-sm">{formData.headquarters_name}</dd>
+                </>
+              )}
+
+              <dt className="text-sm font-medium text-muted-foreground">
+                Adresse
+              </dt>
+              <dd className="text-sm">
+                {formData.headquarters_street}{" "}
+                {formData.headquarters_house_number},
+                {formData.headquarters_postal_code} {formData.headquarters_city}
+              </dd>
+
+              <dt className="text-sm font-medium text-muted-foreground">
+                Bundesland
+              </dt>
+              <dd className="text-sm">{formData.headquarters_state}</dd>
+
+              <dt className="text-sm font-medium text-muted-foreground">
+                Kantine
+              </dt>
+              <dd className="text-sm">
+                {formData.has_canteen ? "Ja" : "Nein"}
+              </dd>
+
+              <dt className="text-sm font-medium text-muted-foreground">
+                E-Ladesäulen
+              </dt>
+              <dd className="text-sm">
+                {formData.has_ev_charging ? "Ja" : "Nein"}
+              </dd>
+            </dl>
+          </CardContent>
+        </Card>
+
+        {formData.beneficial_owners &&
+          formData.beneficial_owners.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Wirtschaftlich Berechtigte</CardTitle>
+                <CardDescription>
+                  Informationen zu den wirtschaftlich Berechtigten
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {formData.beneficial_owners.map(
+                    (owner: any, index: number) => (
+                      <div key={index} className="space-y-2">
+                        {index > 0 && <Separator className="my-4" />}
+                        <h4 className="font-medium">
+                          Wirtschaftlich Berechtigter {index + 1}
+                        </h4>
+                        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Name
+                          </dt>
+                          <dd className="text-sm">
+                            {owner.firstname} {owner.lastname}
+                          </dd>
+
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Geburtsdatum
+                          </dt>
+                          <dd className="text-sm">
+                            {formatDate(owner.birth_date)}
+                          </dd>
+
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Nationalität
+                          </dt>
+                          <dd className="text-sm">{owner.nationality}</dd>
+
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Beteiligungshöhe
+                          </dt>
+                          <dd className="text-sm">
+                            {owner.ownership_percentage === "more_than_25"
+                              ? "Mehr als 25%"
+                              : "Weniger als 25%"}
+                          </dd>
+
+                          <dt className="text-sm font-medium text-muted-foreground">
+                            Öffentliches Amt
+                          </dt>
+                          <dd className="text-sm">
+                            {owner.has_public_office ? "Ja" : "Nein"}
+                          </dd>
+
+                          {owner.has_public_office &&
+                            owner.public_office_description && (
+                              <>
+                                <dt className="text-sm font-medium text-muted-foreground">
+                                  Beschreibung des Amts
+                                </dt>
+                                <dd className="text-sm">
+                                  {owner.public_office_description}
+                                </dd>
+                              </>
+                            )}
+                        </dl>
+                      </div>
+                    ),
                   )}
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">
-            Keine Ansprechpartner angegeben
-          </p>
-        )}
-        <div className="mt-2 flex items-center">
-          {validatePayrollInfo() ? (
-            <CheckCircle2 className="mr-2 h-5 w-5 text-green-500" />
-          ) : (
-            <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
+              </CardContent>
+            </Card>
           )}
-          <span
-            className={
-              validatePayrollInfo() ? "text-green-500" : "text-red-500"
-            }
-          >
-            {validatePayrollInfo() ? "Vollständig" : "Unvollständig"}
-          </span>
-        </div>
       </div>
-    </div>
+    </StepLayout>
   );
-}
+};

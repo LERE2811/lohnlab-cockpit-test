@@ -1,5 +1,5 @@
--- Erweiterung der companies Tabelle um zusätzliche Felder für das Onboarding
-ALTER TABLE "public"."companies" 
+-- Erweiterung der subsidiaries Tabelle um zusätzliche Felder für das Onboarding
+ALTER TABLE "public"."subsidiaries" 
 ADD COLUMN IF NOT EXISTS "tax_number" TEXT,
 ADD COLUMN IF NOT EXISTS "logo_url" TEXT,
 ADD COLUMN IF NOT EXISTS "street" TEXT,
@@ -17,7 +17,7 @@ ADD COLUMN IF NOT EXISTS "onboarding_step" INTEGER DEFAULT 1;
 -- Tabelle für Geschäftsführer
 CREATE TABLE IF NOT EXISTS "public"."managing_directors" (
     "id" UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    "company_id" UUID NOT NULL REFERENCES "public"."companies"("id") ON DELETE CASCADE,
+    "subsidiary_id" UUID NOT NULL REFERENCES "public"."subsidiaries"("id") ON DELETE CASCADE,
     "firstname" TEXT NOT NULL,
     "lastname" TEXT NOT NULL,
     "email" TEXT,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "public"."managing_directors" (
 -- Tabelle für Ansprechpartner der Lohnabrechnung
 CREATE TABLE IF NOT EXISTS "public"."payroll_contacts" (
     "id" UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    "company_id" UUID NOT NULL REFERENCES "public"."companies"("id") ON DELETE CASCADE,
+    "subsidiary_id" UUID NOT NULL REFERENCES "public"."subsidiaries"("id") ON DELETE CASCADE,
     "firstname" TEXT NOT NULL,
     "lastname" TEXT NOT NULL,
     "email" TEXT NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS "public"."payroll_contacts" (
 -- Tabelle für Onboarding-Fortschritt
 CREATE TABLE IF NOT EXISTS "public"."onboarding_progress" (
     "id" UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    "company_id" UUID NOT NULL REFERENCES "public"."companies"("id") ON DELETE CASCADE,
+    "subsidiary_id" UUID NOT NULL REFERENCES "public"."subsidiaries"("id") ON DELETE CASCADE,
     "current_step" INTEGER DEFAULT 1,
     "form_data" JSONB DEFAULT '{}'::jsonb,
     "last_updated" TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,

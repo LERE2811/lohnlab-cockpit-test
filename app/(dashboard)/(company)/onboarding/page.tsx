@@ -1,299 +1,176 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   OnboardingProvider,
-  useOnboarding,
   OnboardingStep,
-} from "@/context/onboarding-context";
-import { useCompany } from "@/context/company-context";
-import { useUser } from "@/context/user-context";
-import { Progress } from "@/components/ui/progress";
+  useOnboarding,
+} from "./context/onboarding-context";
+import { StepSidebar } from "./components/StepSidebar";
+import { CompanyInfoStep } from "./steps/CompanyInfoStep";
+import { ManagingDirectorsStep } from "./steps/ManagingDirectorsStep";
+import { PayrollProcessingStep } from "./steps/PayrollProcessingStep";
+import { WorksCouncilStep } from "./steps/WorksCouncilStep";
+import { CollectiveAgreementStep } from "./steps/CollectiveAgreementStep";
+import { GivveCardStep } from "./steps/GivveCardStep";
+import { HeadquartersStep } from "./steps/HeadquartersStep";
+import { BeneficialOwnersStep } from "./steps/BeneficialOwnersStep";
+import { ReviewStep } from "./steps/ReviewStep";
+import { useCompany, useSubsidiaries } from "@/context/company-context";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, CheckCircle, ArrowRight, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  AlertCircle,
-} from "lucide-react";
-import CompanyInfoStep from "./steps/CompanyInfoStep";
-import AddressStep from "./steps/AddressStep";
-import CommercialRegisterStep from "./steps/CommercialRegisterStep";
-import ManagingDirectorsStep from "./steps/ManagingDirectorsStep";
-import PayrollInfoStep from "./steps/PayrollStep";
-import ReviewStep from "./steps/ReviewStep";
-import CompletedStep from "./steps/CompletedStep";
-import { useState } from "react";
 
-// Wrapper-Komponente für den Onboarding-Inhalt
-function OnboardingContent() {
-  const {
-    currentStep,
-    isLoading: isOnboardingLoading,
-    isSaving,
-    progress,
-    goToNextStep,
-    goToPreviousStep,
-    saveProgress,
-    completeOnboarding,
-    formData,
-  } = useOnboarding();
-  const { company, isLoading: isCompanyLoading } = useCompany();
+// Component to render the current step
+const CurrentStep = () => {
+  const { currentStep } = useOnboarding();
+
+  switch (currentStep) {
+    case OnboardingStep.COMPANY_INFO:
+      return <CompanyInfoStep />;
+    case OnboardingStep.MANAGING_DIRECTORS:
+      return <ManagingDirectorsStep />;
+    case OnboardingStep.PAYROLL_PROCESSING:
+      return <PayrollProcessingStep />;
+    case OnboardingStep.WORKS_COUNCIL:
+      return <WorksCouncilStep />;
+    case OnboardingStep.COLLECTIVE_AGREEMENT:
+      return <CollectiveAgreementStep />;
+    case OnboardingStep.GIVVE_CARD:
+      return <GivveCardStep />;
+    case OnboardingStep.HEADQUARTERS:
+      return <HeadquartersStep />;
+    case OnboardingStep.BENEFICIAL_OWNERS:
+      return <BeneficialOwnersStep />;
+    case OnboardingStep.REVIEW:
+      return <ReviewStep />;
+    default:
+      return (
+        <div className="rounded-lg bg-muted p-6">
+          <h3 className="mb-2 text-lg font-medium">
+            Schritt wird implementiert
+          </h3>
+          <p className="text-muted-foreground">
+            Dieser Schritt wird derzeit implementiert. Bitte versuchen Sie es
+            später erneut.
+          </p>
+        </div>
+      );
+  }
+};
+
+// Wrapper component that checks if a subsidiary is selected
+const OnboardingWrapper = () => {
+  const { subsidiary, isLoading: isCompanyLoading } = useCompany();
   const router = useRouter();
-  const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Wenn kein Unternehmen ausgewählt ist, zurück zum Dashboard
-  // Aber nur, wenn das Laden der Unternehmensdaten abgeschlossen ist
-  useEffect(() => {
-    if (!isCompanyLoading && company === null) {
-      router.push("/dashboard");
-    }
-  }, [company, isCompanyLoading, router]);
-
-  // Wenn das Onboarding bereits abgeschlossen ist, zum Dashboard weiterleiten
-  // Aber nur, wenn das Laden der Unternehmensdaten abgeschlossen ist
-  useEffect(() => {
-    if (!isCompanyLoading && company?.onboarding_completed) {
-      router.push("/dashboard");
-    }
-  }, [company, isCompanyLoading, router]);
-
-  // Validierungsfunktionen für jeden Schritt
-  const validateCompanyInfo = () => {
-    const { name, tax_number } = formData.companyInfo;
-    return !!name && !!tax_number;
-  };
-
-  const validateAddress = () => {
-    const { street, house_number, postal_code, city } = formData.address;
-    return !!street && !!house_number && !!postal_code && !!city;
-  };
-
-  const validateCommercialRegister = () => {
-    const { commercial_register, commercial_register_number } =
-      formData.commercialRegister;
-    return !!commercial_register && !!commercial_register_number;
-  };
-
-  const validateManagingDirectors = () => {
+  // if onboarding is completed show success page
+  if (subsidiary?.onboarding_completed) {
     return (
-      formData.managingDirectors.length > 0 &&
-      formData.managingDirectors.every(
-        (director) => !!director.firstname && !!director.lastname,
-      )
-    );
-  };
+      <div className="flex min-h-[70vh] w-full flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-2xl rounded-xl border bg-card p-8 shadow-lg">
+          <div className="mb-6 flex justify-center">
+            <div className="rounded-full bg-green-100 p-4">
+              <CheckCircle className="h-16 w-16 text-green-600" />
+            </div>
+          </div>
 
-  const validatePayrollInfo = () => {
-    const { payroll_processing, payroll_system, payroll_contacts } =
-      formData.payrollInfo;
+          <h1 className="mb-4 text-center text-3xl font-bold tracking-tight">
+            Onboarding für{" "}
+            <span className="text-primary">{subsidiary.name}</span>{" "}
+            abgeschlossen
+          </h1>
 
-    const hasValidContacts =
-      payroll_contacts.length > 0 &&
-      payroll_contacts.every(
-        (contact) =>
-          !!contact.firstname && !!contact.lastname && !!contact.email,
-      );
+          <p className="mb-8 text-center text-muted-foreground">
+            Vielen Dank für Ihre Teilnahme am Onboarding. Alle erforderlichen
+            Informationen wurden erfolgreich gespeichert.
+          </p>
 
-    return !!payroll_processing && !!payroll_system && hasValidContacts;
-  };
+          <div className="mb-8 rounded-lg border bg-muted/30 p-4">
+            <h3 className="mb-2 font-semibold">Nächste Schritte:</h3>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start">
+                <ArrowRight className="mr-2 h-4 w-4 text-primary" />
+                <span>
+                  Überprüfen Sie, ob noch weitere Tochterunternehmen das
+                  Onboarding benötigen
+                </span>
+              </li>
+              <li className="flex items-start">
+                <ArrowRight className="mr-2 h-4 w-4 text-primary" />
+                <span>
+                  Erkunden Sie Ihr Dashboard, um einen Überblick über Ihre
+                  Gesellschaft zu erhalten
+                </span>
+              </li>
+              <li className="flex items-start">
+                <ArrowRight className="mr-2 h-4 w-4 text-primary" />
+                <span>
+                  Bei Fragen oder Problemen steht Ihnen unser Support-Team zur
+                  Verfügung
+                </span>
+              </li>
+            </ul>
+          </div>
 
-  // Prüfe, ob alle Schritte vollständig sind
-  const allStepsComplete = () => {
-    return (
-      validateCompanyInfo() &&
-      validateAddress() &&
-      validateCommercialRegister() &&
-      validateManagingDirectors() &&
-      validatePayrollInfo()
-    );
-  };
+          <div className="flex flex-col space-y-3 sm:flex-row sm:justify-center sm:space-x-4 sm:space-y-0">
+            <Button
+              onClick={() => router.push("/dashboard")}
+              className="min-w-[200px]"
+              size="lg"
+            >
+              <Home className="mr-2 h-4 w-4" />
+              Zum Dashboard
+            </Button>
 
-  // Handler für das Abschließen des Onboardings mit Validierung
-  const handleCompleteOnboarding = () => {
-    if (!allStepsComplete()) {
-      setValidationError(
-        "Bitte füllen Sie alle erforderlichen Felder aus, bevor Sie das Onboarding abschließen.",
-      );
-      return;
-    }
-
-    setValidationError(null);
-    completeOnboarding();
-  };
-
-  // Zeige Ladeindikator, wenn entweder Unternehmensdaten oder Onboarding-Daten geladen werden
-  if (isCompanyLoading || isOnboardingLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Lade Daten...</span>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/settings")}
+              className="min-w-[200px]"
+              size="lg"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Einstellungen
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Rendere den aktuellen Schritt
-  const renderStep = () => {
-    switch (currentStep) {
-      case OnboardingStep.COMPANY_INFO:
-        return <CompanyInfoStep />;
-      case OnboardingStep.ADDRESS:
-        return <AddressStep />;
-      case OnboardingStep.COMMERCIAL_REGISTER:
-        return <CommercialRegisterStep />;
-      case OnboardingStep.MANAGING_DIRECTORS:
-        return <ManagingDirectorsStep />;
-      case OnboardingStep.PAYROLL_INFO:
-        return <PayrollInfoStep />;
-      case OnboardingStep.REVIEW:
-        return <ReviewStep />;
-      case OnboardingStep.COMPLETED:
-        return <CompletedStep />;
-      default:
-        return <CompanyInfoStep />;
-    }
-  };
-
-  // Bestimme den Titel des aktuellen Schritts
-  const getStepTitle = () => {
-    switch (currentStep) {
-      case OnboardingStep.COMPANY_INFO:
-        return "Unternehmensinformationen";
-      case OnboardingStep.ADDRESS:
-        return "Adresse";
-      case OnboardingStep.COMMERCIAL_REGISTER:
-        return "Handelsregister";
-      case OnboardingStep.MANAGING_DIRECTORS:
-        return "Geschäftsführer";
-      case OnboardingStep.PAYROLL_INFO:
-        return "Lohnabrechnung";
-      case OnboardingStep.REVIEW:
-        return "Überprüfung";
-      case OnboardingStep.COMPLETED:
-        return "Abgeschlossen";
-      default:
-        return "Onboarding";
-    }
-  };
-
-  // Bestimme die Beschreibung des aktuellen Schritts
-  const getStepDescription = () => {
-    switch (currentStep) {
-      case OnboardingStep.COMPANY_INFO:
-        return "Bitte geben Sie grundlegende Informationen zu Ihrem Unternehmen ein.";
-      case OnboardingStep.ADDRESS:
-        return "Bitte geben Sie die Adresse Ihres Unternehmens ein.";
-      case OnboardingStep.COMMERCIAL_REGISTER:
-        return "Bitte geben Sie Informationen zum Handelsregister ein.";
-      case OnboardingStep.MANAGING_DIRECTORS:
-        return "Bitte fügen Sie die Geschäftsführer Ihres Unternehmens hinzu.";
-      case OnboardingStep.PAYROLL_INFO:
-        return "Bitte geben Sie Informationen zur Lohnabrechnung ein.";
-      case OnboardingStep.REVIEW:
-        return "Bitte überprüfen Sie alle eingegebenen Informationen.";
-      case OnboardingStep.COMPLETED:
-        return "Das Onboarding wurde erfolgreich abgeschlossen.";
-      default:
-        return "Bitte füllen Sie alle erforderlichen Informationen aus.";
-    }
-  };
-
-  return (
-    <div className="container mx-auto max-w-4xl py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">{getStepTitle()}</h1>
-        <p className="mt-2 text-muted-foreground">{getStepDescription()}</p>
+  if (isCompanyLoading) {
+    return (
+      <div className="flex h-[50vh] w-full flex-col items-center justify-center space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Daten werden geladen...</p>
       </div>
+    );
+  }
 
-      {/* Fortschrittsanzeige */}
-      <div className="mb-8">
-        <Progress value={progress} className="h-2" />
-        <div className="mt-2 flex justify-between text-sm text-muted-foreground">
-          <span>
-            Schritt {currentStep} von {OnboardingStep.COMPLETED - 1}
-          </span>
-          <span>{progress}% abgeschlossen</span>
-        </div>
-      </div>
+  if (!subsidiary) {
+    return null; // Will redirect in the useEffect
+  }
 
-      {/* Aktueller Schritt */}
-      <div className="mb-8 rounded-lg border p-6 shadow-sm">{renderStep()}</div>
-
-      {/* Validierungsfehler */}
-      {validationError && (
-        <div className="mb-4 rounded-md bg-red-50 p-4 text-red-700">
-          <div className="flex">
-            <AlertCircle className="mr-2 h-5 w-5" />
-            <span>{validationError}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={goToPreviousStep}
-          disabled={currentStep === OnboardingStep.COMPANY_INFO || isSaving}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück
-        </Button>
-
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={saveProgress} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Speichern...
-              </>
-            ) : (
-              "Speichern"
-            )}
-          </Button>
-
-          {currentStep < OnboardingStep.REVIEW ? (
-            <Button onClick={goToNextStep} disabled={isSaving}>
-              Weiter
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : currentStep === OnboardingStep.REVIEW ? (
-            <Button
-              onClick={handleCompleteOnboarding}
-              disabled={isSaving || !allStepsComplete()}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Abschließen...
-                </>
-              ) : (
-                <>
-                  Onboarding abschließen
-                  <Check className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button onClick={() => router.push("/dashboard")}>
-              Zum Dashboard
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Hauptkomponente mit Provider
-export default function OnboardingPage() {
   return (
     <OnboardingProvider>
-      <OnboardingContent />
+      <div className="container mx-auto py-8">
+        <h1 className="mb-6 text-2xl font-bold">
+          Onboarding: {subsidiary.name}
+        </h1>
+
+        <div className="flex flex-col gap-6 md:flex-row">
+          <StepSidebar />
+
+          <div className="flex-1">
+            <CurrentStep />
+          </div>
+        </div>
+      </div>
     </OnboardingProvider>
   );
+};
+
+// Main page component
+export default function OnboardingPage() {
+  return <OnboardingWrapper />;
 }
