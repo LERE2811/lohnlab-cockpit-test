@@ -14,8 +14,61 @@ import { useCompany } from "@/context/company-context";
 import {
   CollectiveAgreementTypes,
   GivveCardDesignTypes,
+  GivveIndustryCategories,
   PayrollProcessing,
 } from "@/shared/model";
+import { DocumentViewer } from "@/components/DocumentViewer";
+import { ImagePreview } from "@/components/ImagePreview";
+
+// Helper function to get human-readable industry category names
+const getIndustryCategoryText = (category: string): string => {
+  switch (category) {
+    case GivveIndustryCategories.AGRICULTURE_FORESTRY_FISHING:
+      return "Land- und Forstwirtschaft, Fischerei";
+    case GivveIndustryCategories.MANUFACTURING:
+      return "Verarbeitendes Gewerbe";
+    case GivveIndustryCategories.ENERGY_SUPPLY:
+      return "Energieversorgung";
+    case GivveIndustryCategories.WATER_WASTE_MANAGEMENT:
+      return "Wasserversorgung; Abwasser- und Abfallentsorgung";
+    case GivveIndustryCategories.MINING_QUARRYING:
+      return "Bergbau und Gewinnung von Steinen und Erden";
+    case GivveIndustryCategories.CONSTRUCTION:
+      return "Baugewerbe";
+    case GivveIndustryCategories.TRADE_VEHICLE_REPAIR:
+      return "Handel; Instandhaltung und Reparatur von Kraftfahrzeugen";
+    case GivveIndustryCategories.REAL_ESTATE:
+      return "Grundstücks- und Wohnungswesen";
+    case GivveIndustryCategories.TRANSPORTATION_STORAGE:
+      return "Verkehr und Lagerei";
+    case GivveIndustryCategories.HOSPITALITY:
+      return "Gastgewerbe";
+    case GivveIndustryCategories.INFORMATION_COMMUNICATION:
+      return "Information und Kommunikation";
+    case GivveIndustryCategories.FINANCIAL_INSURANCE:
+      return "Erbringung von Finanz- und Versicherungsdienstleistungen";
+    case GivveIndustryCategories.OTHER_BUSINESS_SERVICES:
+      return "Erbringung von sonstigen wirtschaftlichen Dienstleistungen";
+    case GivveIndustryCategories.PROFESSIONAL_SCIENTIFIC_TECHNICAL:
+      return "Erbringung von freiberuflichen, wissenschaftlichen und technischen Dienstleistungen";
+    case GivveIndustryCategories.PUBLIC_ADMINISTRATION:
+      return "Öffentliche Verwaltung, Verteidigung, Sozialversicherung";
+    case GivveIndustryCategories.EDUCATION:
+      return "Erziehung und Unterricht";
+    case GivveIndustryCategories.PRIVATE_HOUSEHOLDS:
+      return "Private Haushalte mit Hauspersonal";
+    case GivveIndustryCategories.HEALTH_SOCIAL_SERVICES:
+      return "Gesundheits- und Sozialwesen";
+    case GivveIndustryCategories.ARTS_ENTERTAINMENT:
+      return "Kunst, Unterhaltung und Erholung";
+    case GivveIndustryCategories.OTHER_SERVICES:
+      return "Erbringung von sonstigen Dienstleistungen";
+    case GivveIndustryCategories.EXTRATERRITORIAL_ORGANIZATIONS:
+      return "Exterritoriale Organisationen und Körperschaften";
+    default:
+      return category;
+  }
+};
 
 export const ReviewStep = () => {
   const { formData, completeOnboarding } = useOnboarding();
@@ -288,7 +341,43 @@ export const ReviewStep = () => {
                     </dd>
                   </>
                 )}
+
+              {formData.has_collective_agreement &&
+                formData.collective_agreement_document_url && (
+                  <>
+                    <dt className="text-sm font-medium text-muted-foreground">
+                      Link zum Tarifvertrag
+                    </dt>
+                    <dd className="text-sm">
+                      <a
+                        href={formData.collective_agreement_document_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
+                        {formData.collective_agreement_document_url}
+                      </a>
+                    </dd>
+                  </>
+                )}
             </dl>
+
+            {formData.has_collective_agreement &&
+              formData.collective_agreement_document_url &&
+              formData.file_metadata?.collective_agreement_document && (
+                <div className="mt-6">
+                  <h4 className="mb-2 text-sm font-medium">
+                    Hochgeladener Tarifvertrag
+                  </h4>
+                  <DocumentViewer
+                    filePath={formData.collective_agreement_document_url}
+                    fileName={
+                      formData.file_metadata.collective_agreement_document
+                        .fileName
+                    }
+                  />
+                </div>
+              )}
           </CardContent>
         </Card>
 
@@ -319,6 +408,52 @@ export const ReviewStep = () => {
                   {getGivveCardDesignTypeText(formData.givve_card_design_type)}
                 </dd>
 
+                {formData.givve_card_design_type ===
+                  GivveCardDesignTypes.LOGO_CARD &&
+                  formData.givve_company_logo_url &&
+                  formData.file_metadata?.givve_company_logo && (
+                    <>
+                      <dt className="text-sm font-medium text-muted-foreground">
+                        Unternehmenslogo
+                      </dt>
+                      <dd className="text-sm">
+                        <div className="mt-2">
+                          <ImagePreview
+                            filePath={formData.givve_company_logo_url}
+                            fileName={
+                              formData.file_metadata.givve_company_logo.fileName
+                            }
+                            maxHeight={200}
+                            showFileName={true}
+                          />
+                        </div>
+                      </dd>
+                    </>
+                  )}
+
+                {formData.givve_card_design_type ===
+                  GivveCardDesignTypes.DESIGN_CARD &&
+                  formData.givve_card_design_url &&
+                  formData.file_metadata?.givve_card_design && (
+                    <>
+                      <dt className="text-sm font-medium text-muted-foreground">
+                        Kartendesign
+                      </dt>
+                      <dd className="text-sm">
+                        <div className="mt-2">
+                          <ImagePreview
+                            filePath={formData.givve_card_design_url}
+                            fileName={
+                              formData.file_metadata.givve_card_design.fileName
+                            }
+                            maxHeight={200}
+                            showFileName={true}
+                          />
+                        </div>
+                      </dd>
+                    </>
+                  )}
+
                 <dt className="text-sm font-medium text-muted-foreground">
                   Zweite Zeile auf der Karte
                 </dt>
@@ -332,6 +467,15 @@ export const ReviewStep = () => {
                 <dd className="text-sm">
                   {formData.givve_loading_date
                     ? `${formData.givve_loading_date}. des Monats`
+                    : "Nicht angegeben"}
+                </dd>
+
+                <dt className="text-sm font-medium text-muted-foreground">
+                  Branchenkategorie
+                </dt>
+                <dd className="text-sm">
+                  {formData.givve_industry_category
+                    ? getIndustryCategoryText(formData.givve_industry_category)
                     : "Nicht angegeben"}
                 </dd>
               </dl>

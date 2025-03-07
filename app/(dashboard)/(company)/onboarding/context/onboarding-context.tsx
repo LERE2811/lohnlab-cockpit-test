@@ -122,6 +122,21 @@ export const OnboardingProvider = ({
           const formDataFromProgress = progressData.form_data || {};
           console.log("Form data from progress:", formDataFromProgress);
 
+          // If we have file metadata, regenerate signed URLs
+          if (formDataFromProgress.file_metadata) {
+            try {
+              const { regenerateSignedUrls } = await import(
+                "@/utils/file-upload"
+              );
+              const updatedFileMetadata = await regenerateSignedUrls(
+                formDataFromProgress.file_metadata,
+              );
+              formDataFromProgress.file_metadata = updatedFileMetadata;
+            } catch (error) {
+              console.error("Error regenerating signed URLs:", error);
+            }
+          }
+
           setFormData(formDataFromProgress);
 
           // Map legacy step numbers to the new enum if needed
@@ -347,13 +362,21 @@ export const OnboardingProvider = ({
         commercial_register: formData.commercial_register,
         commercial_register_number: formData.commercial_register_number,
         commercial_register_file_url: formData.commercial_register_file_url,
+
+        // Payroll processing fields
         payroll_processing: formData.payroll_processing,
         payroll_system: formData.payroll_system,
+
+        // Works council field
         has_works_council: formData.has_works_council,
+
+        // Collective agreement fields
         has_collective_agreement: formData.has_collective_agreement,
         collective_agreement_type: formData.collective_agreement_type,
         collective_agreement_document_url:
           formData.collective_agreement_document_url,
+
+        // Givve Card related fields
         has_givve_card: formData.has_givve_card,
         givve_legal_form: formData.givve_legal_form,
         givve_card_design_type: formData.givve_card_design_type,
@@ -363,15 +386,41 @@ export const OnboardingProvider = ({
         givve_card_second_line: formData.givve_card_second_line,
         givve_loading_date: formData.givve_loading_date,
         givve_industry_category: formData.givve_industry_category,
+
+        // Headquarters information
         headquarters_street: formData.headquarters_street,
         headquarters_house_number: formData.headquarters_house_number,
         headquarters_postal_code: formData.headquarters_postal_code,
         headquarters_city: formData.headquarters_city,
         headquarters_state: formData.headquarters_state,
         headquarters_name: formData.headquarters_name,
+
+        // Additional amenities
         has_canteen: formData.has_canteen,
         has_ev_charging: formData.has_ev_charging,
       };
+
+      // If we have file metadata, ensure it's included in the form_data
+      if (formData.file_metadata) {
+        // Make sure we're not losing any file metadata during completion
+        const updatedFormData = {
+          ...formData,
+          file_metadata: formData.file_metadata,
+        };
+
+        // Update the form data in the progress record
+        const { error: progressUpdateError } = await supabase
+          .from("onboarding_progress")
+          .update({
+            form_data: updatedFormData,
+            last_updated: new Date().toISOString(),
+          })
+          .eq("id", progress.id);
+
+        if (progressUpdateError) {
+          console.error("Error updating file metadata:", progressUpdateError);
+        }
+      }
 
       // Update subsidiary
       const { error: subsidiaryError } = await supabase

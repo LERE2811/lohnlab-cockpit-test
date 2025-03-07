@@ -16,9 +16,17 @@ import {
 } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { CollectiveAgreementTypes } from "@/shared/model";
+import { FileUpload } from "@/components/FileUpload";
+import { useCompany } from "@/context/company-context";
+import {
+  OnboardingFileMetadata,
+  FileMetadata,
+  updateFileMetadata,
+} from "@/utils/file-upload";
+import { DocumentViewer } from "@/components/DocumentViewer";
 
 const formSchema = z.object({
   has_collective_agreement: z.boolean(),
@@ -30,12 +38,15 @@ const formSchema = z.object({
     .optional()
     .nullable(),
   collective_agreement_document_url: z.string().optional().nullable(),
+  file_metadata: z.record(z.any()).optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export const CollectiveAgreementStep = () => {
   const { formData, updateFormData, saveProgress } = useOnboarding();
+  const { subsidiary } = useCompany();
+  const [fileMetadata, setFileMetadata] = useState<OnboardingFileMetadata>({});
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -43,6 +54,7 @@ export const CollectiveAgreementStep = () => {
       has_collective_agreement: false,
       collective_agreement_type: null,
       collective_agreement_document_url: null,
+      file_metadata: null,
     },
   });
 
@@ -57,7 +69,13 @@ export const CollectiveAgreementStep = () => {
         collective_agreement_type: formData.collective_agreement_type || null,
         collective_agreement_document_url:
           formData.collective_agreement_document_url || null,
+        file_metadata: formData.file_metadata || null,
       });
+
+      // Initialize file metadata if it exists
+      if (formData.file_metadata) {
+        setFileMetadata(formData.file_metadata as OnboardingFileMetadata);
+      }
     }
   }, [formData, form]);
 
@@ -66,10 +84,51 @@ export const CollectiveAgreementStep = () => {
     if (!values.has_collective_agreement) {
       values.collective_agreement_type = null;
       values.collective_agreement_document_url = null;
+      values.file_metadata = null;
+    } else {
+      // Include file metadata in the form data
+      values.file_metadata = fileMetadata;
     }
 
     updateFormData(values);
     await saveProgress(values, true);
+  };
+
+  const handleFileUploadComplete = (fileData: {
+    signedUrl: string;
+    filePath: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }) => {
+    // Update the form with the file path - store in collective_agreement_document_url
+    form.setValue("collective_agreement_document_url", fileData.filePath);
+
+    // Update file metadata
+    const updatedMetadata = updateFileMetadata(
+      fileMetadata,
+      "collective_agreement_document",
+      fileData,
+    );
+
+    setFileMetadata(updatedMetadata);
+
+    // Also update the form's file_metadata field
+    form.setValue("file_metadata", updatedMetadata);
+  };
+
+  const handleFileRemove = () => {
+    // Clear the file path
+    form.setValue("collective_agreement_document_url", null);
+
+    // Remove from file metadata
+    const updatedMetadata = { ...fileMetadata };
+    delete updatedMetadata.collective_agreement_document;
+
+    setFileMetadata(updatedMetadata);
+
+    // Update the form's file_metadata field
+    form.setValue("file_metadata", updatedMetadata);
   };
 
   return (
@@ -149,18 +208,70 @@ export const CollectiveAgreementStep = () => {
                 name="collective_agreement_document_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Link zum Tarifvertrag (optional)</FormLabel>
+                    <FormLabel>Tarifvertrag hochladen (optional)</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="https://..."
-                        {...field}
-                        value={field.value || ""}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      />
+                      <div className="space-y-4">
+                        {field.value &&
+                        fileMetadata.collective_agreement_document ? (
+                          <div className="space-y-4">
+                            <DocumentViewer
+                              filePath={field.value}
+                              fileName={
+                                fileMetadata.collective_agreement_document
+                                  .fileName
+                              }
+                            />
+                            <div>
+                              <FileUpload
+                                folder="collective_agreements"
+                                subsidiaryId={subsidiary?.id || ""}
+                                onUploadComplete={handleFileUploadComplete}
+                                onRemove={handleFileRemove}
+                                existingFileUrl={
+                                  fileMetadata.collective_agreement_document
+                                    ?.signedUrl
+                                }
+                                existingFilePath={
+                                  fileMetadata.collective_agreement_document
+                                    ?.filePath
+                                }
+                                existingFileName={
+                                  fileMetadata.collective_agreement_document
+                                    ?.fileName
+                                }
+                                acceptedFileTypes="application/pdf"
+                                maxSizeMB={20}
+                                label="Tarifvertrag ersetzen"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <FileUpload
+                            folder="collective_agreements"
+                            subsidiaryId={subsidiary?.id || ""}
+                            onUploadComplete={handleFileUploadComplete}
+                            onRemove={handleFileRemove}
+                            existingFileUrl={
+                              fileMetadata.collective_agreement_document
+                                ?.signedUrl
+                            }
+                            existingFilePath={
+                              fileMetadata.collective_agreement_document
+                                ?.filePath
+                            }
+                            existingFileName={
+                              fileMetadata.collective_agreement_document
+                                ?.fileName
+                            }
+                            acceptedFileTypes="application/pdf"
+                            maxSizeMB={20}
+                            label="Tarifvertrag hochladen"
+                          />
+                        )}
+                      </div>
                     </FormControl>
                     <FormDescription>
-                      Falls vorhanden, können Sie hier einen Link zum
-                      Tarifvertrag angeben.
+                      Laden Sie hier Ihren Tarifvertrag als PDF-Dokument hoch.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
