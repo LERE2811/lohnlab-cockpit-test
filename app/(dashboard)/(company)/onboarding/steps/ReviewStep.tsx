@@ -11,620 +11,424 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useCompany } from "@/context/company-context";
-import {
-  CollectiveAgreementTypes,
-  GivveCardDesignTypes,
-  GivveIndustryCategories,
-  PayrollProcessing,
-} from "@/shared/model";
-import { DocumentViewer } from "@/components/DocumentViewer";
-import { ImagePreview } from "@/components/ImagePreview";
-
-// Helper function to get human-readable industry category names
-const getIndustryCategoryText = (category: string): string => {
-  switch (category) {
-    case GivveIndustryCategories.AGRICULTURE_FORESTRY_FISHING:
-      return "Land- und Forstwirtschaft, Fischerei";
-    case GivveIndustryCategories.MANUFACTURING:
-      return "Verarbeitendes Gewerbe";
-    case GivveIndustryCategories.ENERGY_SUPPLY:
-      return "Energieversorgung";
-    case GivveIndustryCategories.WATER_WASTE_MANAGEMENT:
-      return "Wasserversorgung; Abwasser- und Abfallentsorgung";
-    case GivveIndustryCategories.MINING_QUARRYING:
-      return "Bergbau und Gewinnung von Steinen und Erden";
-    case GivveIndustryCategories.CONSTRUCTION:
-      return "Baugewerbe";
-    case GivveIndustryCategories.TRADE_VEHICLE_REPAIR:
-      return "Handel; Instandhaltung und Reparatur von Kraftfahrzeugen";
-    case GivveIndustryCategories.REAL_ESTATE:
-      return "Grundstücks- und Wohnungswesen";
-    case GivveIndustryCategories.TRANSPORTATION_STORAGE:
-      return "Verkehr und Lagerei";
-    case GivveIndustryCategories.HOSPITALITY:
-      return "Gastgewerbe";
-    case GivveIndustryCategories.INFORMATION_COMMUNICATION:
-      return "Information und Kommunikation";
-    case GivveIndustryCategories.FINANCIAL_INSURANCE:
-      return "Erbringung von Finanz- und Versicherungsdienstleistungen";
-    case GivveIndustryCategories.OTHER_BUSINESS_SERVICES:
-      return "Erbringung von sonstigen wirtschaftlichen Dienstleistungen";
-    case GivveIndustryCategories.PROFESSIONAL_SCIENTIFIC_TECHNICAL:
-      return "Erbringung von freiberuflichen, wissenschaftlichen und technischen Dienstleistungen";
-    case GivveIndustryCategories.PUBLIC_ADMINISTRATION:
-      return "Öffentliche Verwaltung, Verteidigung, Sozialversicherung";
-    case GivveIndustryCategories.EDUCATION:
-      return "Erziehung und Unterricht";
-    case GivveIndustryCategories.PRIVATE_HOUSEHOLDS:
-      return "Private Haushalte mit Hauspersonal";
-    case GivveIndustryCategories.HEALTH_SOCIAL_SERVICES:
-      return "Gesundheits- und Sozialwesen";
-    case GivveIndustryCategories.ARTS_ENTERTAINMENT:
-      return "Kunst, Unterhaltung und Erholung";
-    case GivveIndustryCategories.OTHER_SERVICES:
-      return "Erbringung von sonstigen Dienstleistungen";
-    case GivveIndustryCategories.EXTRATERRITORIAL_ORGANIZATIONS:
-      return "Exterritoriale Organisationen und Körperschaften";
-    default:
-      return category;
-  }
-};
+import { Button } from "@/components/ui/button";
+import { CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 export const ReviewStep = () => {
   const { formData, completeOnboarding } = useOnboarding();
   const { subsidiary } = useCompany();
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "";
-    try {
-      return new Date(dateString).toLocaleDateString("de-DE");
-    } catch (e) {
-      return dateString;
-    }
-  };
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   const getPayrollProcessingText = (value: string) => {
     switch (value) {
-      case PayrollProcessing.INTERNAL:
+      case "intern":
         return "Intern (durch eigene Mitarbeiter)";
-      case PayrollProcessing.EXTERNAL:
+      case "extern":
         return "Extern (durch Steuerberater oder Dienstleister)";
       default:
-        return "Nicht angegeben";
+        return value;
     }
   };
 
   const getCollectiveAgreementTypeText = (value: string) => {
     switch (value) {
-      case CollectiveAgreementTypes.COMPANY_AGREEMENT:
+      case "haustarifvertrag":
         return "Haustarifvertrag";
-      case CollectiveAgreementTypes.INDUSTRY_AGREEMENT:
+      case "flächentarifvertrag":
         return "Flächentarifvertrag";
       default:
-        return "Nicht angegeben";
+        return value;
     }
   };
 
-  const getGivveCardDesignTypeText = (value: string) => {
-    switch (value) {
-      case GivveCardDesignTypes.STANDARD_CARD:
-        return "Standardkarte";
-      case GivveCardDesignTypes.LOGO_CARD:
-        return "Logokarte";
-      case GivveCardDesignTypes.DESIGN_CARD:
-        return "Designkarte";
-      default:
-        return "Nicht angegeben";
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await completeOnboarding();
+      toast({
+        title: "Onboarding abgeschlossen",
+        description: "Vielen Dank für die Teilnahme am Onboarding.",
+      });
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      toast({
+        title: "Fehler",
+        description:
+          "Beim Abschließen des Onboardings ist ein Fehler aufgetreten.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <StepLayout
       title="Überprüfung & Abschluss"
-      description="Bitte überprüfen Sie alle eingegebenen Informationen und schließen Sie das Onboarding ab."
-      onComplete={completeOnboarding}
+      description="Bitte überprüfen Sie die eingegebenen Informationen und schließen Sie das Onboarding ab."
+      onSave={handleSubmit}
+      saveButtonText="Onboarding abschließen"
+      saveButtonIcon={<CheckCircle2 className="mr-2 h-4 w-4" />}
+      isSaving={isSubmitting}
     >
       <div className="space-y-6">
+        {/* Gesellschaft */}
         <Card>
           <CardHeader>
-            <CardTitle>Unternehmensinformationen</CardTitle>
+            <CardTitle>Gesellschaft</CardTitle>
             <CardDescription>
-              Grundlegende Informationen zu Ihrer Gesellschaft
+              Grundlegende Informationen zur Gesellschaft
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-              <dt className="text-sm font-medium text-muted-foreground">
-                Name
-              </dt>
-              <dd className="text-sm">{subsidiary?.name}</dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Rechtsform
-              </dt>
-              <dd className="text-sm">{subsidiary?.legal_form}</dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Steuernummer
-              </dt>
-              <dd className="text-sm">
-                {formData.tax_number || "Nicht angegeben"}
-              </dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Adresse
-              </dt>
-              <dd className="text-sm">
-                {formData.street} {formData.house_number},{" "}
-                {formData.postal_code} {formData.city}
-              </dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Handelsregister
-              </dt>
-              <dd className="text-sm">{formData.commercial_register}</dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Handelsregisternummer
-              </dt>
-              <dd className="text-sm">{formData.commercial_register_number}</dd>
-
-              {formData.commercial_register_file_url &&
-                formData.file_metadata?.commercial_register_document && (
-                  <>
-                    <dt className="text-sm font-medium text-muted-foreground">
-                      Handelsregisterauszug
-                    </dt>
-                    <dd className="text-sm">
-                      <div className="mt-2">
-                        <DocumentViewer
-                          filePath={formData.commercial_register_file_url}
-                          fileName={
-                            formData.file_metadata.commercial_register_document
-                              .fileName
-                          }
-                        />
-                      </div>
-                    </dd>
-                  </>
-                )}
-            </dl>
-          </CardContent>
-        </Card>
-
-        {formData.managing_directors &&
-          formData.managing_directors.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Geschäftsführer</CardTitle>
-                <CardDescription>
-                  Informationen zu den Geschäftsführern
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {formData.managing_directors.map(
-                    (director: any, index: number) => (
-                      <div key={index} className="space-y-2">
-                        {index > 0 && <Separator className="my-4" />}
-                        <h4 className="font-medium">
-                          Geschäftsführer {index + 1}
-                        </h4>
-                        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Name
-                          </dt>
-                          <dd className="text-sm">
-                            {director.firstname} {director.lastname}
-                          </dd>
-
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            E-Mail
-                          </dt>
-                          <dd className="text-sm">
-                            {director.email || "Nicht angegeben"}
-                          </dd>
-
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Telefon
-                          </dt>
-                          <dd className="text-sm">
-                            {director.phone || "Nicht angegeben"}
-                          </dd>
-                        </dl>
-                      </div>
-                    ),
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Lohnabrechnung</CardTitle>
-            <CardDescription>
-              Informationen zur Lohnabrechnung und den Ansprechpartnern
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="mb-4 grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-              <dt className="text-sm font-medium text-muted-foreground">
-                Art der Lohnabrechnung
-              </dt>
-              <dd className="text-sm">
-                {getPayrollProcessingText(formData.payroll_processing)}
-              </dd>
-
-              {formData.payroll_processing === PayrollProcessing.INTERNAL &&
-                formData.payroll_system && (
-                  <>
-                    <dt className="text-sm font-medium text-muted-foreground">
-                      Lohnabrechnungssystem
-                    </dt>
-                    <dd className="text-sm">{formData.payroll_system}</dd>
-                  </>
-                )}
-            </dl>
-
-            {formData.payroll_contacts &&
-              formData.payroll_contacts.length > 0 && (
-                <div>
-                  <h4 className="mb-2 text-sm font-medium">
-                    {formData.payroll_processing === PayrollProcessing.INTERNAL
-                      ? "Ansprechpartner für die Lohnabrechnung"
-                      : "Externe Ansprechpartner für die Lohnabrechnung"}
-                  </h4>
-                  <div className="space-y-4">
-                    {formData.payroll_contacts.map(
-                      (contact: any, index: number) => (
-                        <div key={index} className="space-y-2">
-                          {index > 0 && <Separator className="my-4" />}
-                          <h5 className="text-sm font-medium">
-                            Ansprechpartner {index + 1}
-                          </h5>
-                          <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-                            {formData.payroll_processing ===
-                              PayrollProcessing.EXTERNAL &&
-                              contact.company_name && (
-                                <>
-                                  <dt className="text-sm font-medium text-muted-foreground">
-                                    Unternehmen / Kanzlei
-                                  </dt>
-                                  <dd className="text-sm">
-                                    {contact.company_name}
-                                  </dd>
-                                </>
-                              )}
-
-                            <dt className="text-sm font-medium text-muted-foreground">
-                              Name
-                            </dt>
-                            <dd className="text-sm">
-                              {contact.firstname} {contact.lastname}
-                            </dd>
-
-                            <dt className="text-sm font-medium text-muted-foreground">
-                              E-Mail
-                            </dt>
-                            <dd className="text-sm">{contact.email}</dd>
-
-                            <dt className="text-sm font-medium text-muted-foreground">
-                              Telefon
-                            </dt>
-                            <dd className="text-sm">
-                              {contact.phone || "Nicht angegeben"}
-                            </dd>
-                          </dl>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-              )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Betriebsrat & Tarifbindung</CardTitle>
-            <CardDescription>
-              Informationen zu Betriebsrat und Tarifbindung
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-              <dt className="text-sm font-medium text-muted-foreground">
-                Betriebsrat vorhanden
-              </dt>
-              <dd className="text-sm">
-                {formData.has_works_council ? "Ja" : "Nein"}
-              </dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Gesellschaftsform
+                </h4>
+                <p>
+                  {formData.company_form ||
+                    formData.legal_form ||
+                    "Nicht angegeben"}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Betriebsrat
+                </h4>
+                <p>{formData.has_works_council ? "Ja" : "Nein"}</p>
+              </div>
+            </div>
+            <Separator />
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">
                 Tarifbindung
-              </dt>
-              <dd className="text-sm">
-                {formData.has_collective_agreement ? "Ja" : "Nein"}
-              </dd>
-
+              </h4>
+              <p>{formData.has_collective_agreement ? "Ja" : "Nein"}</p>
               {formData.has_collective_agreement &&
                 formData.collective_agreement_type && (
-                  <>
-                    <dt className="text-sm font-medium text-muted-foreground">
-                      Art der Tarifbindung
-                    </dt>
-                    <dd className="text-sm">
-                      {getCollectiveAgreementTypeText(
-                        formData.collective_agreement_type,
-                      )}
-                    </dd>
-                  </>
+                  <p className="mt-1 text-sm">
+                    Art:{" "}
+                    {getCollectiveAgreementTypeText(
+                      formData.collective_agreement_type,
+                    )}
+                  </p>
                 )}
-
-              {formData.has_collective_agreement &&
-                formData.collective_agreement_document_url && (
-                  <>
-                    <dt className="text-sm font-medium text-muted-foreground">
-                      Link zum Tarifvertrag
-                    </dt>
-                    <dd className="text-sm">
-                      <a
-                        href={formData.collective_agreement_document_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline"
-                      >
-                        {formData.collective_agreement_document_url}
-                      </a>
-                    </dd>
-                  </>
-                )}
-            </dl>
-
-            {formData.has_collective_agreement &&
-              formData.collective_agreement_document_url &&
-              formData.file_metadata?.collective_agreement_document && (
-                <div className="mt-6">
-                  <h4 className="mb-2 text-sm font-medium">
-                    Hochgeladener Tarifvertrag
-                  </h4>
-                  <DocumentViewer
-                    filePath={formData.collective_agreement_document_url}
-                    fileName={
-                      formData.file_metadata.collective_agreement_document
-                        .fileName
-                    }
-                  />
-                </div>
-              )}
+            </div>
           </CardContent>
         </Card>
 
-        {formData.has_givve_card && (
+        {/* Standorte */}
+        {formData.locations && formData.locations.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Givve Card</CardTitle>
-              <CardDescription>Informationen zur Givve Card</CardDescription>
+              <CardTitle>Standorte</CardTitle>
+              <CardDescription>Informationen zu den Standorten</CardDescription>
             </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-                <dt className="text-sm font-medium text-muted-foreground">
-                  Givve Card
-                </dt>
-                <dd className="text-sm">Ja</dd>
-
-                <dt className="text-sm font-medium text-muted-foreground">
-                  Rechtsform für Givve
-                </dt>
-                <dd className="text-sm">
-                  {formData.givve_legal_form || "Nicht angegeben"}
-                </dd>
-
-                <dt className="text-sm font-medium text-muted-foreground">
-                  Kartendesign
-                </dt>
-                <dd className="text-sm">
-                  {getGivveCardDesignTypeText(formData.givve_card_design_type)}
-                </dd>
-
-                {formData.givve_card_design_type ===
-                  GivveCardDesignTypes.LOGO_CARD &&
-                  formData.givve_company_logo_url &&
-                  formData.file_metadata?.givve_company_logo && (
-                    <>
-                      <dt className="text-sm font-medium text-muted-foreground">
-                        Unternehmenslogo
-                      </dt>
-                      <dd className="text-sm">
-                        <div className="mt-2">
-                          <ImagePreview
-                            filePath={formData.givve_company_logo_url}
-                            fileName={
-                              formData.file_metadata.givve_company_logo.fileName
-                            }
-                            maxHeight={200}
-                            showFileName={true}
-                          />
-                        </div>
-                      </dd>
-                    </>
+            <CardContent className="space-y-4">
+              {formData.locations.map((location: any, index: number) => (
+                <div key={index} className="space-y-2">
+                  <h4 className="font-medium">
+                    {location.is_headquarters
+                      ? "Hauptniederlassung"
+                      : `Niederlassung ${index + 1}`}
+                    {location.name ? `: ${location.name}` : ""}
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Adresse:</p>
+                      <p>
+                        {location.street} {location.house_number}
+                        <br />
+                        {location.postal_code} {location.city}
+                        <br />
+                        {location.state}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Zusätzliche Informationen:
+                      </p>
+                      <p>
+                        Kantine/Catering: {location.has_canteen ? "Ja" : "Nein"}
+                        <br />
+                        E-Ladesäulen:{" "}
+                        {location.has_charging_stations ? "Ja" : "Nein"}
+                      </p>
+                    </div>
+                  </div>
+                  {index < formData.locations.length - 1 && (
+                    <Separator className="my-2" />
                   )}
-
-                {formData.givve_card_design_type ===
-                  GivveCardDesignTypes.DESIGN_CARD &&
-                  formData.givve_card_design_url &&
-                  formData.file_metadata?.givve_card_design && (
-                    <>
-                      <dt className="text-sm font-medium text-muted-foreground">
-                        Kartendesign
-                      </dt>
-                      <dd className="text-sm">
-                        <div className="mt-2">
-                          <ImagePreview
-                            filePath={formData.givve_card_design_url}
-                            fileName={
-                              formData.file_metadata.givve_card_design.fileName
-                            }
-                            maxHeight={200}
-                            showFileName={true}
-                          />
-                        </div>
-                      </dd>
-                    </>
-                  )}
-
-                <dt className="text-sm font-medium text-muted-foreground">
-                  Zweite Zeile auf der Karte
-                </dt>
-                <dd className="text-sm">
-                  {formData.givve_card_second_line || "Nicht angegeben"}
-                </dd>
-
-                <dt className="text-sm font-medium text-muted-foreground">
-                  Aufladedatum
-                </dt>
-                <dd className="text-sm">
-                  {formData.givve_loading_date
-                    ? `${formData.givve_loading_date}. des Monats`
-                    : "Nicht angegeben"}
-                </dd>
-
-                <dt className="text-sm font-medium text-muted-foreground">
-                  Branchenkategorie
-                </dt>
-                <dd className="text-sm">
-                  {formData.givve_industry_category
-                    ? getIndustryCategoryText(formData.givve_industry_category)
-                    : "Nicht angegeben"}
-                </dd>
-              </dl>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}
 
+        {/* Lohnabrechnung */}
         <Card>
           <CardHeader>
-            <CardTitle>Hauptniederlassung</CardTitle>
-            <CardDescription>
-              Informationen zur Hauptniederlassung
-            </CardDescription>
+            <CardTitle>Lohnabrechnung</CardTitle>
+            <CardDescription>Informationen zur Lohnabrechnung</CardDescription>
           </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-              {formData.headquarters_name && (
-                <>
-                  <dt className="text-sm font-medium text-muted-foreground">
-                    Bezeichnung
-                  </dt>
-                  <dd className="text-sm">{formData.headquarters_name}</dd>
-                </>
-              )}
+          <CardContent className="space-y-4">
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Art der Lohnabrechnung
+              </h4>
+              <p>
+                {formData.payroll_processing_type
+                  ? getPayrollProcessingText(formData.payroll_processing_type)
+                  : formData.payroll_processing
+                    ? getPayrollProcessingText(formData.payroll_processing)
+                    : "Nicht angegeben"}
+              </p>
+            </div>
+            <Separator />
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Lohnabrechnungssystem
+              </h4>
+              <p>
+                {formData.payroll_system
+                  ? formData.payroll_system === "sonstige"
+                    ? formData.custom_payroll_system || "Sonstiges System"
+                    : formData.payroll_system
+                  : "Nicht angegeben"}
+              </p>
+            </div>
 
-              <dt className="text-sm font-medium text-muted-foreground">
-                Adresse
-              </dt>
-              <dd className="text-sm">
-                {formData.headquarters_street}{" "}
-                {formData.headquarters_house_number},
-                {formData.headquarters_postal_code} {formData.headquarters_city}
-              </dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Bundesland
-              </dt>
-              <dd className="text-sm">{formData.headquarters_state}</dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                Kantine
-              </dt>
-              <dd className="text-sm">
-                {formData.has_canteen ? "Ja" : "Nein"}
-              </dd>
-
-              <dt className="text-sm font-medium text-muted-foreground">
-                E-Ladesäulen
-              </dt>
-              <dd className="text-sm">
-                {formData.has_ev_charging ? "Ja" : "Nein"}
-              </dd>
-            </dl>
+            {formData.wants_import_file && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Monatliche Importdatei
+                  </h4>
+                  <p>Ja, wird benötigt</p>
+                  {formData.import_date_type && (
+                    <p className="mt-1 text-sm">
+                      Lieferzeitpunkt:{" "}
+                      {formData.import_date_type === "standard"
+                        ? "Standarddatum (10. des Monats)"
+                        : formData.custom_import_date || "Individuelles Datum"}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {formData.beneficial_owners &&
-          formData.beneficial_owners.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Wirtschaftlich Berechtigte</CardTitle>
-                <CardDescription>
-                  Informationen zu den wirtschaftlich Berechtigten
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+        {/* Buchhaltung */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Buchhaltung</CardTitle>
+            <CardDescription>Informationen zur Buchhaltung</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Zahlungsmethode
+                </h4>
+                <p>
+                  {formData.payment_method === "sepa"
+                    ? "Bankeinzug (SEPA)"
+                    : formData.payment_method === "invoice"
+                      ? "Auf Rechnung"
+                      : "Nicht angegeben"}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Rechnungsstellung
+                </h4>
+                <p>
+                  {formData.invoice_type === "company"
+                    ? "Eine Rechnung für die gesamte Gesellschaft"
+                    : formData.invoice_type === "location"
+                      ? "Separate Rechnung pro Standort"
+                      : "Nicht angegeben"}
+                </p>
+              </div>
+            </div>
+
+            {formData.billing_info && formData.billing_info.length > 0 && (
+              <>
+                <Separator />
                 <div className="space-y-4">
-                  {formData.beneficial_owners.map(
-                    (owner: any, index: number) => (
-                      <div key={index} className="space-y-2">
-                        {index > 0 && <Separator className="my-4" />}
-                        <h4 className="font-medium">
-                          Wirtschaftlich Berechtigter {index + 1}
-                        </h4>
-                        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Name
-                          </dt>
-                          <dd className="text-sm">
-                            {owner.firstname} {owner.lastname}
-                          </dd>
+                  <h4 className="text-sm font-medium">
+                    Rechnungsinformationen
+                  </h4>
 
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Geburtsdatum
-                          </dt>
-                          <dd className="text-sm">
-                            {formatDate(owner.birth_date)}
-                          </dd>
-
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Nationalität
-                          </dt>
-                          <dd className="text-sm">{owner.nationality}</dd>
-
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Beteiligungshöhe
-                          </dt>
-                          <dd className="text-sm">
-                            {owner.ownership_percentage === "more_than_25"
-                              ? "Mehr als 25%"
-                              : "Weniger als 25%"}
-                          </dd>
-
-                          <dt className="text-sm font-medium text-muted-foreground">
-                            Öffentliches Amt
-                          </dt>
-                          <dd className="text-sm">
-                            {owner.has_public_office ? "Ja" : "Nein"}
-                          </dd>
-
-                          {owner.has_public_office &&
-                            owner.public_office_description && (
-                              <>
-                                <dt className="text-sm font-medium text-muted-foreground">
-                                  Beschreibung des Amts
-                                </dt>
-                                <dd className="text-sm">
-                                  {owner.public_office_description}
-                                </dd>
-                              </>
-                            )}
-                        </dl>
+                  {formData.billing_info.map((info: any, index: number) => (
+                    <div key={index} className="rounded-lg border p-3">
+                      <h5 className="mb-2 font-medium">
+                        {formData.invoice_type === "location" &&
+                        info.location_name
+                          ? `Standort: ${info.location_name}`
+                          : "Rechnungsinformationen"}
+                      </h5>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {formData.payment_method === "sepa" && (
+                          <>
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                IBAN:
+                              </p>
+                              <p>{info.iban || "Nicht angegeben"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                Kontoinhaber:
+                              </p>
+                              <p>{info.account_holder || "Nicht angegeben"}</p>
+                            </div>
+                          </>
+                        )}
+                        <div>
+                          <p className="text-sm text-muted-foreground">
+                            E-Mail für Rechnungen:
+                          </p>
+                          <p>{info.billing_email || "Nicht angegeben"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">
+                            Telefon für Rückfragen:
+                          </p>
+                          <p>{info.phone || "Nicht angegeben"}</p>
+                        </div>
                       </div>
-                    ),
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Ansprechpartner */}
+        {formData.contacts && formData.contacts.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ansprechpartner</CardTitle>
+              <CardDescription>
+                Informationen zu den Ansprechpartnern
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.contacts.map((contact: any, index: number) => (
+                <div key={index} className="space-y-2">
+                  <h4 className="font-medium">
+                    {contact.first_name || contact.firstname}{" "}
+                    {contact.last_name || contact.lastname}
+                    {contact.company_name && ` (${contact.company_name})`}
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Kontaktdaten:
+                      </p>
+                      <p>
+                        E-Mail: {contact.email}
+                        <br />
+                        {contact.phone && `Telefon: ${contact.phone}`}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Kategorien:
+                      </p>
+                      {contact.categories && contact.categories.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {contact.categories.map((cat: string, i: number) => (
+                            <Badge key={i} variant="outline">
+                              {cat}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : contact.category ? (
+                        <Badge variant="outline">{contact.category}</Badge>
+                      ) : (
+                        <p>Keine Kategorien angegeben</p>
+                      )}
+                      <p className="mt-1 text-sm">
+                        Zugang zum Cockpit:{" "}
+                        {contact.has_cockpit_access ? "Ja" : "Nein"}
+                      </p>
+                    </div>
+                  </div>
+                  {index < formData.contacts.length - 1 && (
+                    <Separator className="my-2" />
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* givve Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>givve® Card</CardTitle>
+            <CardDescription>Informationen zur givve® Card</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>
+              {formData.has_givve_card
+                ? "Die givve® Card wird genutzt. Nach Abschluss des Onboardings wird ein separater Prozess für die Einrichtung gestartet."
+                : "Die givve® Card wird nicht genutzt."}
+            </p>
+          </CardContent>
+        </Card>
+
+        <div className="rounded-lg border bg-muted/30 p-4">
+          <div className="flex items-start space-x-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-500" />
+            <div>
+              <h3 className="font-medium">Bereit zum Abschluss</h3>
+              <p className="text-sm text-muted-foreground">
+                Sie haben alle erforderlichen Informationen eingegeben. Klicken
+                Sie auf "Onboarding abschließen", um den Prozess abzuschließen.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Debug toggle button (only in development) */}
+        {process.env.NODE_ENV === "development" && (
+          <Button
+            variant="outline"
+            onClick={() => setShowDebug(!showDebug)}
+            className="w-full"
+          >
+            {showDebug
+              ? "Debug Information ausblenden"
+              : "Debug Information anzeigen"}
+          </Button>
+        )}
+
+        {/* Debug Information */}
+        {showDebug && (
+          <Card className="border-dashed border-yellow-500">
+            <CardHeader>
+              <CardTitle>Debug Information</CardTitle>
+              <CardDescription>Technische Details zum Formular</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <pre className="max-h-96 overflow-auto rounded bg-slate-900 p-4 text-xs text-white">
+                {JSON.stringify(formData, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </StepLayout>
   );

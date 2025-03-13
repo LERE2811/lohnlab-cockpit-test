@@ -25,24 +25,17 @@ import { supabase } from "@/utils/supabase/client";
 import { Vertriebspartner } from "@/shared/model";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-type FormStep = 1 | 2 | 3;
+type FormStep = 1 | 2;
 
 interface Subsidiary {
   name: string;
   legal_form: string;
 }
 
-interface Ansprechpartner {
-  firstname: string;
-  lastname: string;
-  email: string;
-}
-
 interface CompanyFormData {
   name: string;
   vertriebspartner: keyof typeof Vertriebspartner;
   subsidiaries: Subsidiary[];
-  ansprechpartner: Ansprechpartner;
 }
 
 const LEGAL_FORMS = [
@@ -59,7 +52,8 @@ const LEGAL_FORMS = [
   "PartG mbB",
   "e.V.",
   "eG",
-  "natürliche Person",
+  "Freiberufler",
+  "Einzelunternehmen",
 ];
 
 export const CreateCompanyDialog = () => {
@@ -71,17 +65,8 @@ export const CreateCompanyDialog = () => {
     name: "",
     vertriebspartner: "" as keyof typeof Vertriebspartner,
     subsidiaries: [{ name: "", legal_form: "" }],
-    ansprechpartner: {
-      firstname: "",
-      lastname: "",
-      email: "",
-    },
   });
   const router = useRouter();
-
-  const validateEmail = (email: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
 
   const validateStep = (currentStep: FormStep): boolean => {
     switch (currentStep) {
@@ -111,31 +96,12 @@ export const CreateCompanyDialog = () => {
           return false;
         }
         break;
-      case 3:
-        if (
-          !formData.ansprechpartner.firstname ||
-          !formData.ansprechpartner.lastname ||
-          !formData.ansprechpartner.email ||
-          !validateEmail(formData.ansprechpartner.email)
-        ) {
-          toast({
-            title: "Fehler",
-            description:
-              formData.ansprechpartner.email &&
-              !validateEmail(formData.ansprechpartner.email)
-                ? "Bitte geben Sie eine gültige E-Mail-Adresse ein."
-                : "Bitte füllen Sie alle Pflichtfelder aus.",
-            className: "border-red-500",
-          });
-          return false;
-        }
-        break;
     }
     return true;
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(3)) return;
+    if (!validateStep(2)) return;
 
     try {
       setIsLoading(true);
@@ -175,20 +141,6 @@ export const CreateCompanyDialog = () => {
       );
       if (subsidiaryErrors.length > 0) throw subsidiaryErrors[0].error;
 
-      // Insert ansprechpartner
-      const { error: ansprechpartnerError } = await supabase
-        .from("ansprechpartner")
-        .insert([
-          {
-            company_id: companyData.id,
-            firstname: formData.ansprechpartner.firstname,
-            lastname: formData.ansprechpartner.lastname,
-            email: formData.ansprechpartner.email,
-          },
-        ]);
-
-      if (ansprechpartnerError) throw ansprechpartnerError;
-
       toast({
         title: "✅ Erfolg",
         description: "Unternehmen erfolgreich erstellt!",
@@ -202,11 +154,6 @@ export const CreateCompanyDialog = () => {
         name: "",
         vertriebspartner: "" as keyof typeof Vertriebspartner,
         subsidiaries: [{ name: "", legal_form: "" }],
-        ansprechpartner: {
-          firstname: "",
-          lastname: "",
-          email: "",
-        },
       });
       router.refresh();
     } catch (error) {
@@ -223,7 +170,16 @@ export const CreateCompanyDialog = () => {
 
   const nextStep = () => {
     if (validateStep(step)) {
-      setStep((prev) => (prev < 3 ? ((prev + 1) as FormStep) : prev));
+      // When moving from step 1 to step 2, auto-fill the subsidiary name with the company name
+      if (step === 1) {
+        setFormData((prev) => ({
+          ...prev,
+          subsidiaries: prev.subsidiaries.map((sub, index) =>
+            index === 0 ? { ...sub, name: prev.name } : sub,
+          ),
+        }));
+      }
+      setStep((prev) => (prev < 2 ? ((prev + 1) as FormStep) : prev));
     }
   };
 
@@ -251,49 +207,69 @@ export const CreateCompanyDialog = () => {
     field: keyof Subsidiary,
     value: string,
   ) => {
-    setFormData((prev) => ({
-      ...prev,
-      subsidiaries: prev.subsidiaries.map((subsidiary, i) =>
-        i === index ? { ...subsidiary, [field]: value } : subsidiary,
-      ),
-    }));
+    setFormData((prev) => {
+      const updatedSubsidiaries = [...prev.subsidiaries];
+      updatedSubsidiaries[index] = {
+        ...updatedSubsidiaries[index],
+        [field]: value,
+      };
+      return { ...prev, subsidiaries: updatedSubsidiaries };
+    });
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4" />
-          Unternehmen erstellen
+          <Plus className="mr-2 h-4 w-4" />
+          Neues Unternehmen
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Neues Unternehmen erstellen</DialogTitle>
+          <DialogTitle>Neues Unternehmen anlegen</DialogTitle>
           <DialogDescription>
-            Schritt {step} von 3:{" "}
-            {step === 1
-              ? "Unternehmensdaten"
-              : step === 2
-                ? "Gesellschaften"
-                : "Ansprechpartner"}
+            Erstellen Sie ein neues Unternehmen und fügen Sie Gesellschaften
+            hinzu.
           </DialogDescription>
         </DialogHeader>
+        <div className="flex items-center justify-center">
+          <div className="flex space-x-2">
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                step >= 1 ? "bg-primary text-primary-foreground" : "bg-muted"
+              }`}
+            >
+              1
+            </div>
+            <div
+              className={`h-0.5 w-10 self-center ${
+                step >= 2 ? "bg-primary" : "bg-muted"
+              }`}
+            ></div>
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                step >= 2 ? "bg-primary text-primary-foreground" : "bg-muted"
+              }`}
+            >
+              2
+            </div>
+          </div>
+        </div>
 
         {step === 1 && (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name des Unternehmens*</Label>
+              <Label htmlFor="company-name">Unternehmensname*</Label>
               <Input
-                id="name"
+                id="company-name"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
-                placeholder="Geben Sie den Namen des Unternehmens ein"
+                placeholder="Name des Unternehmens"
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="vertriebspartner">Vertriebspartner*</Label>
               <Select
@@ -309,8 +285,8 @@ export const CreateCompanyDialog = () => {
                   <SelectItem value="LOHNLAB">
                     {Vertriebspartner.LOHNLAB}
                   </SelectItem>
-                  <SelectItem value="LOHNKONZEPT">
-                    {Vertriebspartner.LOHNKONZEPT}
+                  <SelectItem value="LOHNKONZEPTE">
+                    {Vertriebspartner.LOHNKONZEPTE}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -379,79 +355,29 @@ export const CreateCompanyDialog = () => {
           </div>
         )}
 
-        {step === 3 && (
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstname">Vorname*</Label>
-                <Input
-                  id="firstname"
-                  value={formData.ansprechpartner.firstname}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      ansprechpartner: {
-                        ...prev.ansprechpartner,
-                        firstname: e.target.value,
-                      },
-                    }))
-                  }
-                  placeholder="Vorname"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastname">Nachname*</Label>
-                <Input
-                  id="lastname"
-                  value={formData.ansprechpartner.lastname}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      ansprechpartner: {
-                        ...prev.ansprechpartner,
-                        lastname: e.target.value,
-                      },
-                    }))
-                  }
-                  placeholder="Nachname"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-Mail*</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.ansprechpartner.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    ansprechpartner: {
-                      ...prev.ansprechpartner,
-                      email: e.target.value,
-                    },
-                  }))
-                }
-                placeholder="E-Mail-Adresse"
-              />
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="flex justify-between">
+        <DialogFooter>
           {step > 1 && (
-            <Button variant="outline" onClick={prevStep} disabled={isLoading}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={prevStep}
+              disabled={isLoading}
+            >
               Zurück
             </Button>
           )}
-          {step < 3 ? (
-            <Button onClick={nextStep} disabled={isLoading}>
+          {step < 2 ? (
+            <Button type="button" onClick={nextStep} disabled={isLoading}>
               Weiter
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? "Erstellen..." : "Unternehmen erstellen"}
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading}
+              className="bg-primary"
+            >
+              {isLoading ? "Wird erstellt..." : "Erstellen"}
             </Button>
           )}
         </DialogFooter>

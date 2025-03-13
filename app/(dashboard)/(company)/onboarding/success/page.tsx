@@ -28,7 +28,7 @@ export default function OnboardingSuccessPage() {
         </h1>
 
         <p className="mb-8 max-w-md text-center text-muted-foreground">
-          Vielen Dank für das Ausfüllen aller erforderlichen Informationen. Ihre
+          Vielen Dank für das Ausfüllen aller erforderlichen Informationen. Die
           Gesellschaft <span className="font-semibold">{subsidiary?.name}</span>{" "}
           wurde erfolgreich eingerichtet und ist jetzt einsatzbereit.
         </p>
@@ -46,7 +46,7 @@ export default function OnboardingSuccessPage() {
             <li className="flex items-start">
               <ArrowRight className="mr-2 h-4 w-4 text-primary" />
               <span>
-                Erkunden Sie Ihr Dashboard, um einen Überblick über Ihre
+                Erkunden Sie Ihr Dashboard, um einen Überblick über die
                 Gesellschaft zu erhalten
               </span>
             </li>

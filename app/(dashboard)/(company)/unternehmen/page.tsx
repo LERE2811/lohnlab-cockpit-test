@@ -198,7 +198,7 @@ const UnternehmenPage = () => {
             <CardHeader>
               <CardTitle>Grundinformationen</CardTitle>
               <CardDescription>
-                Grundlegende Informationen zu Ihrer Gesellschaft
+                Grundlegende Informationen zu der Gesellschaft
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -519,7 +519,7 @@ const UnternehmenPage = () => {
             <CardHeader>
               <CardTitle>Dokumente</CardTitle>
               <CardDescription>
-                Alle hochgeladenen Dokumente für Ihre Gesellschaft
+                Alle hochgeladenen Dokumente für die Gesellschaft
               </CardDescription>
             </CardHeader>
             <CardContent>

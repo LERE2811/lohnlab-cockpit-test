@@ -12,6 +12,10 @@ interface StepLayoutProps {
   onSave?: () => Promise<void>;
   onComplete?: () => Promise<void>;
   disableNext?: boolean;
+  saveButtonText?: string;
+  saveButtonIcon?: ReactNode;
+  isSaving?: boolean;
+  validationMessage?: string;
 }
 
 export const StepLayout = ({
@@ -21,8 +25,16 @@ export const StepLayout = ({
   onSave,
   onComplete,
   disableNext,
+  saveButtonText,
+  saveButtonIcon,
+  isSaving: externalIsSaving,
+  validationMessage,
 }: StepLayoutProps) => {
-  const { isLoading } = useOnboarding();
+  const { isLoading, isSaving: contextIsSaving } = useOnboarding();
+
+  // Use external isSaving if provided, otherwise use context isSaving
+  const isSaving =
+    externalIsSaving !== undefined ? externalIsSaving : contextIsSaving;
 
   if (isLoading) {
     return (
@@ -62,6 +74,10 @@ export const StepLayout = ({
             onSave={onSave}
             onComplete={onComplete}
             disableNext={disableNext}
+            saveButtonText={saveButtonText}
+            saveButtonIcon={saveButtonIcon}
+            isSaving={isSaving}
+            validationMessage={validationMessage}
           />
         </div>
       </CardContent>

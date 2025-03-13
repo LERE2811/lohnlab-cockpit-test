@@ -6,42 +6,45 @@ import {
   useOnboarding,
 } from "./context/onboarding-context";
 import { StepSidebar } from "./components/StepSidebar";
-import { CompanyInfoStep } from "./steps/CompanyInfoStep";
-import { ManagingDirectorsStep } from "./steps/ManagingDirectorsStep";
-import { PayrollProcessingStep } from "./steps/PayrollProcessingStep";
-import { WorksCouncilStep } from "./steps/WorksCouncilStep";
-import { CollectiveAgreementStep } from "./steps/CollectiveAgreementStep";
+import { GesellschaftStep } from "./steps/GesellschaftStep";
+import { StandorteStep } from "./steps/StandorteStep";
+import { LohnabrechnungStep } from "./steps/LohnabrechnungStep";
+import { BuchhaltungStep } from "./steps/BuchhaltungStep";
+import { AnsprechpartnerStep } from "./steps/AnsprechpartnerStep";
 import { GivveCardStep } from "./steps/GivveCardStep";
-import { HeadquartersStep } from "./steps/HeadquartersStep";
-import { BeneficialOwnersStep } from "./steps/BeneficialOwnersStep";
 import { ReviewStep } from "./steps/ReviewStep";
-import { useCompany, useSubsidiaries } from "@/context/company-context";
+import { useCompany } from "@/context/company-context";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle, ArrowRight, Home, Settings } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle,
+  ArrowRight,
+  Home,
+  Settings,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Component to render the current step
 const CurrentStep = () => {
-  const { currentStep } = useOnboarding();
+  const { currentStep, areAllStepsCompleted, isStepCompleted } =
+    useOnboarding();
 
   switch (currentStep) {
-    case OnboardingStep.COMPANY_INFO:
-      return <CompanyInfoStep />;
-    case OnboardingStep.MANAGING_DIRECTORS:
-      return <ManagingDirectorsStep />;
-    case OnboardingStep.PAYROLL_PROCESSING:
-      return <PayrollProcessingStep />;
-    case OnboardingStep.WORKS_COUNCIL:
-      return <WorksCouncilStep />;
-    case OnboardingStep.COLLECTIVE_AGREEMENT:
-      return <CollectiveAgreementStep />;
+    case OnboardingStep.GESELLSCHAFT:
+      return <GesellschaftStep />;
+    case OnboardingStep.STANDORTE:
+      return <StandorteStep />;
+    case OnboardingStep.LOHNABRECHNUNG:
+      return <LohnabrechnungStep />;
+    case OnboardingStep.BUCHHALTUNG:
+      return <BuchhaltungStep />;
+    case OnboardingStep.ANSPRECHPARTNER:
+      return <AnsprechpartnerStep />;
     case OnboardingStep.GIVVE_CARD:
       return <GivveCardStep />;
-    case OnboardingStep.HEADQUARTERS:
-      return <HeadquartersStep />;
-    case OnboardingStep.BENEFICIAL_OWNERS:
-      return <BeneficialOwnersStep />;
     case OnboardingStep.REVIEW:
       return <ReviewStep />;
     default:
@@ -82,7 +85,7 @@ const OnboardingWrapper = () => {
           </h1>
 
           <p className="mb-8 text-center text-muted-foreground">
-            Vielen Dank für Ihre Teilnahme am Onboarding. Alle erforderlichen
+            Vielen Dank für die Teilnahme am Onboarding. Alle erforderlichen
             Informationen wurden erfolgreich gespeichert.
           </p>
 
@@ -99,7 +102,7 @@ const OnboardingWrapper = () => {
               <li className="flex items-start">
                 <ArrowRight className="mr-2 h-4 w-4 text-primary" />
                 <span>
-                  Erkunden Sie Ihr Dashboard, um einen Überblick über Ihre
+                  Erkunden Sie das Dashboard, um einen Überblick über die
                   Gesellschaft zu erhalten
                 </span>
               </li>

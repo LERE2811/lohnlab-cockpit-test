@@ -21,117 +21,118 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useEffect, useState } from "react";
 
 // Define the step type
 interface OnboardingStepItem {
   id: OnboardingStep;
   title: string;
   icon: React.ElementType;
-  requiredFields: string[];
 }
 
 export const StepSidebar = () => {
-  const { currentStep, goToStep, isLoading, formData } = useOnboarding();
+  const {
+    currentStep,
+    goToStep,
+    isLoading,
+    isStepCompleted,
+    areAllStepsCompleted,
+    formData,
+  } = useOnboarding();
+
+  // State to force re-render when necessary
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  // Force refresh when formData changes, especially for the GIVVE_CARD step
+  useEffect(() => {
+    // Skip during initial render or when formData is not yet loaded
+    if (!formData) return;
+
+    // Check specifically if has_givve_card has been set (can be true or false)
+    const hasGivveCardIsDefined = formData.has_givve_card !== undefined;
+
+    if (hasGivveCardIsDefined) {
+      // Force a re-check of all steps completion
+      const allStepsCompleted = areAllStepsCompleted();
+
+      // Check if review step should be available
+      const isReviewStepAvailable = isStepCompleted(OnboardingStep.REVIEW);
+
+      // Force re-render
+      setRefreshCounter((prev) => prev + 1);
+
+      // Force another update after a short delay to ensure all context updates have propagated
+      setTimeout(() => {
+        const allStepsCompleted = areAllStepsCompleted();
+        setRefreshCounter((prev) => prev + 1);
+      }, 300);
+    }
+  }, [formData, areAllStepsCompleted, isStepCompleted]);
 
   const steps: OnboardingStepItem[] = [
     {
-      id: OnboardingStep.COMPANY_INFO,
-      title: "Unternehmen",
+      id: OnboardingStep.GESELLSCHAFT,
+      title: "Gesellschaft",
       icon: Building2,
-      requiredFields: [
-        "tax_number",
-        "street",
-        "house_number",
-        "postal_code",
-        "city",
-      ],
     },
     {
-      id: OnboardingStep.MANAGING_DIRECTORS,
-      title: "Geschäftsführer",
-      icon: Users,
-      requiredFields: ["managing_directors"],
+      id: OnboardingStep.STANDORTE,
+      title: "Standorte",
+      icon: Home,
     },
     {
-      id: OnboardingStep.PAYROLL_PROCESSING,
+      id: OnboardingStep.LOHNABRECHNUNG,
       title: "Lohnabrechnung",
       icon: FileSpreadsheet,
-      requiredFields: ["payroll_processing"],
     },
     {
-      id: OnboardingStep.WORKS_COUNCIL,
-      title: "Betriebsrat",
-      icon: Users2,
-      requiredFields: ["has_works_council"],
-    },
-    {
-      id: OnboardingStep.COLLECTIVE_AGREEMENT,
-      title: "Tarifbindung",
+      id: OnboardingStep.BUCHHALTUNG,
+      title: "Buchhaltung",
       icon: FileCheck,
-      requiredFields: ["has_collective_agreement"],
+    },
+    {
+      id: OnboardingStep.ANSPRECHPARTNER,
+      title: "Ansprechpartner",
+      icon: Users,
     },
     {
       id: OnboardingStep.GIVVE_CARD,
-      title: "Givve Card",
+      title: "givve® Card",
       icon: CreditCard,
-      requiredFields: ["has_givve_card"],
-    },
-    {
-      id: OnboardingStep.HEADQUARTERS,
-      title: "Hauptniederlassung",
-      icon: Home,
-      requiredFields: [
-        "headquarters_street",
-        "headquarters_postal_code",
-        "headquarters_city",
-      ],
-    },
-    {
-      id: OnboardingStep.BENEFICIAL_OWNERS,
-      title: "Wirtschaftlich Berechtigte",
-      icon: UserCheck,
-      requiredFields: ["beneficial_owners"],
     },
     {
       id: OnboardingStep.REVIEW,
       title: "Überprüfung & Abschluss",
       icon: ClipboardCheck,
-      requiredFields: [],
     },
   ];
 
-  // Check if a step is completed based on required fields
-  const isStepCompleted = (step: OnboardingStepItem): boolean => {
-    if (!formData) return false;
+  // Check if a step is available to be clicked
+  const isStepAvailable = (step: OnboardingStepItem): boolean => {
+    // First step is always available
+    if (step.id === OnboardingStep.GESELLSCHAFT) return true;
 
-    // If we're past this step, consider it completed
-    if (currentStep > step.id) return true;
+    // Current step is always available
+    if (currentStep === step.id) return true;
 
-    // Check if all required fields are filled
-    return step.requiredFields.every((field: string) => {
-      // For array fields, check if they exist and have at least one item
-      if (
-        field === "managing_directors" ||
-        field === "beneficial_owners" ||
-        field === "payroll_contacts"
-      ) {
-        return formData[field] && formData[field].length > 0;
-      }
+    // Completed steps are always available
+    const stepCompleted = isStepCompleted(step.id);
+    if (stepCompleted) return true;
 
-      // For boolean fields, they just need to exist (can be true or false)
-      if (
-        field === "has_works_council" ||
-        field === "has_collective_agreement" ||
-        field === "has_givve_card"
-      ) {
-        return formData[field] !== undefined;
-      }
+    // Special case for Review step - only available when all other steps are completed
+    if (step.id === OnboardingStep.REVIEW) {
+      const allCompleted = areAllStepsCompleted();
+      return allCompleted;
+    }
 
-      // For other fields, check if they exist and are not empty
-      return (
-        formData[field] && formData[field].trim && formData[field].trim() !== ""
-      );
-    });
+    // For other steps, they're available if the previous step is completed
+    const previousStepIndex = steps.findIndex((s) => s.id === step.id) - 1;
+    if (previousStepIndex >= 0) {
+      const prevStepCompleted = isStepCompleted(steps[previousStepIndex].id);
+      return prevStepCompleted;
+    }
+
+    return false;
   };
 
   if (isLoading) {
@@ -153,31 +154,39 @@ export const StepSidebar = () => {
     <div className="w-64 rounded-lg bg-muted p-4">
       <h3 className="mb-4 font-medium">Onboarding Schritte</h3>
       <div className="space-y-1">
-        {steps.map((step, index) => {
+        {steps.map((step) => {
           const Icon = step.icon;
           const isActive = currentStep === step.id;
-          const isPrevious = currentStep > step.id;
-          const isCompleted = isStepCompleted(step);
-          const isAvailable = index === 0 || isStepCompleted(steps[index - 1]);
+          const isCompleted = isStepCompleted(step.id);
+          const isAvailable = isStepAvailable(step);
+
+          // Special case for Review step
+          const isReviewStep = step.id === OnboardingStep.REVIEW;
+          const allCompleted = areAllStepsCompleted();
+          const canClickReview = isReviewStep && allCompleted;
+
+          // Determine if the step can be clicked - Review step should ONLY be clickable if ALL steps are completed
           const canClick =
             isActive ||
-            isPrevious ||
-            (index > 0 && isStepCompleted(steps[index - 1]));
+            isCompleted ||
+            (isReviewStep ? canClickReview : isAvailable);
 
+          // Create button with disabled state for Review step
           const StepButton = () => (
             <button
               className={cn(
                 "flex w-full items-center justify-between rounded-md p-2 text-sm transition-colors",
                 isActive
                   ? "bg-primary text-primary-foreground"
-                  : isPrevious && isCompleted
-                    ? "text-muted-foreground hover:bg-muted-foreground/10"
+                  : isCompleted
+                    ? "text-foreground hover:bg-muted-foreground/10"
                     : isAvailable
-                      ? "text-muted-foreground hover:bg-muted-foreground/10"
+                      ? "text-foreground hover:bg-muted-foreground/10"
                       : "cursor-not-allowed text-muted-foreground/40",
               )}
               onClick={() => canClick && goToStep(step.id)}
               disabled={!canClick}
+              aria-disabled={!canClick}
             >
               <div className="flex items-center space-x-3">
                 <Icon
@@ -185,10 +194,10 @@ export const StepSidebar = () => {
                     "h-5 w-5",
                     isActive
                       ? "text-primary-foreground"
-                      : isPrevious && isCompleted
-                        ? "text-muted-foreground"
+                      : isCompleted
+                        ? "text-foreground"
                         : isAvailable
-                          ? "text-muted-foreground"
+                          ? "text-foreground"
                           : "text-muted-foreground/40",
                   )}
                 />
@@ -200,22 +209,29 @@ export const StepSidebar = () => {
                 <Lock className="h-4 w-4 text-muted-foreground/40" />
               )}
 
-              {/* Show checkmark only for completed steps that are available and not active */}
-              {isCompleted && !isActive && isAvailable && (
+              {/* Show checkmark for completed steps */}
+              {isCompleted && !isActive && (
                 <CheckCircle className="h-4 w-4 text-green-500" />
               )}
             </button>
           );
 
-          if (!isAvailable) {
+          if (!isAvailable && !isCompleted) {
+            // Show tooltip for unavailable steps
+            const tooltipMessage = isReviewStep
+              ? "Bitte schließen Sie zuerst alle vorherigen Schritte ab"
+              : "Bitte schließen Sie zuerst die vorherigen Schritte ab";
+
             return (
               <TooltipProvider key={step.id}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <StepButton />
+                    <div>
+                      <StepButton />
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Bitte schließen Sie zuerst den vorherigen Schritt ab</p>
+                    <p>{tooltipMessage}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

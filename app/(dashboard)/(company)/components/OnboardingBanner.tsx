@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ClipboardList, X, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { OnboardingStep } from "@/app/(dashboard)/(company)/onboarding/context/onboarding-context";
 
 export const OnboardingBanner = () => {
   const { subsidiary } = useCompany();
@@ -17,10 +18,36 @@ export const OnboardingBanner = () => {
     return null;
   }
 
-  // Calculate progress percentage based on the current step
-  const totalSteps = 9; // Total number of onboarding steps
+  // Map the current step number to the corresponding OnboardingStep enum
   const currentStep = subsidiary.onboarding_step || 1;
+
+  // Total number of steps based on the OnboardingStep enum (7 steps total)
+  const totalSteps = 7; // GESELLSCHAFT, STANDORTE, LOHNABRECHNUNG, BUCHHALTUNG, ANSPRECHPARTNER, GIVVE_CARD, REVIEW
+
+  // Calculate progress percentage based on the current step
   const progressPercentage = Math.round((currentStep / totalSteps) * 100);
+
+  // Get a description of the current step
+  const getStepDescription = (step: number) => {
+    switch (step) {
+      case OnboardingStep.GESELLSCHAFT:
+        return "Gesellschaft";
+      case OnboardingStep.STANDORTE:
+        return "Standorte";
+      case OnboardingStep.LOHNABRECHNUNG:
+        return "Lohnabrechnung";
+      case OnboardingStep.BUCHHALTUNG:
+        return "Buchhaltung";
+      case OnboardingStep.ANSPRECHPARTNER:
+        return "Ansprechpartner";
+      case OnboardingStep.GIVVE_CARD:
+        return "givve Card";
+      case OnboardingStep.REVIEW:
+        return "Überprüfung & Abschluss";
+      default:
+        return "Onboarding";
+    }
+  };
 
   return (
     <div className="mb-6">
@@ -46,7 +73,8 @@ export const OnboardingBanner = () => {
             </h5>
             <p className="text-sm text-blue-600 dark:text-blue-300">
               Sie haben das Onboarding für {subsidiary.name} begonnen, aber noch
-              nicht abgeschlossen. Aktueller Fortschritt: {progressPercentage}%
+              nicht abgeschlossen. Aktueller Schritt:{" "}
+              {getStepDescription(currentStep)} ({progressPercentage}%)
             </p>
 
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-800">

@@ -223,8 +223,8 @@ export const EditCompanyDialog = ({
                 <SelectItem value="LOHNLAB">
                   {Vertriebspartner.LOHNLAB}
                 </SelectItem>
-                <SelectItem value="LOHNKONZEPT">
-                  {Vertriebspartner.LOHNKONZEPT}
+                <SelectItem value="LOHNKONZEPTE">
+                  {Vertriebspartner.LOHNKONZEPTE}
                 </SelectItem>
               </SelectContent>
             </Select>

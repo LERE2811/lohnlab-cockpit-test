@@ -6,31 +6,61 @@ import { supabase } from "@/utils/supabase/client";
 import { useCompany } from "@/context/company-context";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { normalizeFormData } from "../utils/form-data-fixer";
 
 // Define the steps for the onboarding process
 export enum OnboardingStep {
-  COMPANY_INFO = 1,
-  MANAGING_DIRECTORS = 2,
-  PAYROLL_PROCESSING = 3, // Combined step for payroll processing and contacts
-  WORKS_COUNCIL = 4,
-  COLLECTIVE_AGREEMENT = 5,
+  GESELLSCHAFT = 1,
+  STANDORTE = 2,
+  LOHNABRECHNUNG = 3,
+  BUCHHALTUNG = 4,
+  ANSPRECHPARTNER = 5,
   GIVVE_CARD = 6,
-  HEADQUARTERS = 7,
-  BENEFICIAL_OWNERS = 8,
-  REVIEW = 9,
+  REVIEW = 7,
 }
+
+// Define the step requirements
+export const STEP_REQUIREMENTS = {
+  [OnboardingStep.GESELLSCHAFT]: [
+    "company_form",
+    "has_works_council",
+    "has_collective_agreement",
+  ],
+  [OnboardingStep.STANDORTE]: ["locations"],
+  [OnboardingStep.LOHNABRECHNUNG]: ["payroll_processing_type"],
+  [OnboardingStep.BUCHHALTUNG]: [
+    "payment_method",
+    "invoice_type",
+    "billing_info",
+  ],
+  [OnboardingStep.ANSPRECHPARTNER]: ["contacts"],
+  [OnboardingStep.GIVVE_CARD]: ["has_givve_card"],
+  [OnboardingStep.REVIEW]: [],
+};
 
 // For backward compatibility with existing data
 const mapLegacyStep = (step: number): OnboardingStep => {
-  // If the step is PAYROLL_CONTACTS (3 in the old enum), map it to PAYROLL_PROCESSING
-  if (step === 3) {
-    return OnboardingStep.PAYROLL_PROCESSING;
+  // Map old steps to new steps
+  switch (step) {
+    case 1: // COMPANY_INFO
+      return OnboardingStep.GESELLSCHAFT;
+    case 2: // MANAGING_DIRECTORS
+    case 7: // HEADQUARTERS
+      return OnboardingStep.STANDORTE;
+    case 3: // PAYROLL_PROCESSING
+      return OnboardingStep.LOHNABRECHNUNG;
+    case 4: // WORKS_COUNCIL
+    case 5: // COLLECTIVE_AGREEMENT
+      return OnboardingStep.GESELLSCHAFT;
+    case 6: // GIVVE_CARD
+      return OnboardingStep.GIVVE_CARD;
+    case 8: // BENEFICIAL_OWNERS
+      return OnboardingStep.BUCHHALTUNG;
+    case 9: // REVIEW
+      return OnboardingStep.REVIEW;
+    default:
+      return OnboardingStep.GESELLSCHAFT;
   }
-  // For steps after PAYROLL_CONTACTS, decrement by 1 to account for the merged step
-  if (step > 3) {
-    return (step - 1) as OnboardingStep;
-  }
-  return step as OnboardingStep;
 };
 
 // Define the context type
@@ -46,14 +76,16 @@ interface OnboardingContextType {
   updateFormData: (data: Record<string, any>) => void;
   saveProgress: (
     latestFormData?: Record<string, any>,
-    showToast?: boolean,
+    step?: OnboardingStep,
   ) => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  isStepCompleted: (step: OnboardingStep) => boolean;
+  areAllStepsCompleted: () => boolean;
 }
 
 // Create the context
 export const OnboardingContext = createContext<OnboardingContextType>({
-  currentStep: OnboardingStep.COMPANY_INFO,
+  currentStep: OnboardingStep.GESELLSCHAFT,
   formData: {},
   progress: null,
   isLoading: true,
@@ -64,6 +96,8 @@ export const OnboardingContext = createContext<OnboardingContextType>({
   updateFormData: () => {},
   saveProgress: async () => {},
   completeOnboarding: async () => {},
+  isStepCompleted: () => false,
+  areAllStepsCompleted: () => false,
 });
 
 // Create the provider component
@@ -73,7 +107,7 @@ export const OnboardingProvider = ({
   children: React.ReactNode;
 }) => {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(
-    OnboardingStep.COMPANY_INFO,
+    OnboardingStep.GESELLSCHAFT,
   );
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [progress, setProgress] = useState<OnboardingProgress | null>(null);
@@ -117,22 +151,25 @@ export const OnboardingProvider = ({
           // Ensure form_data is an object, not null
           const formDataFromProgress = progressData.form_data || {};
 
+          // Normalize the form data to fix any inconsistencies
+          const normalizedFormData = normalizeFormData(formDataFromProgress);
+
           // If we have file metadata, regenerate signed URLs
-          if (formDataFromProgress.file_metadata) {
+          if (normalizedFormData.file_metadata) {
             try {
               const { regenerateSignedUrls } = await import(
                 "@/utils/file-upload"
               );
               const updatedFileMetadata = await regenerateSignedUrls(
-                formDataFromProgress.file_metadata,
+                normalizedFormData.file_metadata,
               );
-              formDataFromProgress.file_metadata = updatedFileMetadata;
+              normalizedFormData.file_metadata = updatedFileMetadata;
             } catch (error) {
               console.error("Error regenerating signed URLs:", error);
             }
           }
 
-          setFormData(formDataFromProgress);
+          setFormData(normalizedFormData);
 
           // Map legacy step numbers to the new enum if needed
           const mappedStep = mapLegacyStep(progressData.current_step);
@@ -163,7 +200,7 @@ export const OnboardingProvider = ({
             .from("onboarding_progress")
             .insert({
               subsidiary_id: subsidiary.id,
-              current_step: OnboardingStep.COMPANY_INFO,
+              current_step: OnboardingStep.GESELLSCHAFT,
               form_data: initialFormData,
             })
             .select()
@@ -254,42 +291,57 @@ export const OnboardingProvider = ({
     updateStep();
   }, [currentStep, progress, subsidiary, isLoading]);
 
-  // Go to a specific step
-  const goToStep = (step: OnboardingStep) => {
-    // First save the current form data to ensure it's not lost
-    if (progress) {
-      // Create a deep copy of the current form data
-      const currentFormData = JSON.parse(JSON.stringify(formData));
-
-      // Update the database with the current form data
-      const saveCurrentData = async () => {
-        try {
-          const { error } = await supabase
-            .from("onboarding_progress")
-            .update({
-              form_data: currentFormData,
-              last_updated: new Date().toISOString(),
-            })
-            .eq("id", progress.id);
-
-          if (error) {
-            console.error("Error saving form data before step change:", error);
-          } else {
-            // Now it's safe to change the step
-            setCurrentStep(step);
-          }
-        } catch (error) {
-          console.error("Error in saveCurrentData:", error);
-          // Still change the step even if there was an error
-          setCurrentStep(step);
-        }
-      };
-
-      saveCurrentData();
-    } else {
-      // If there's no progress record, just change the step
-      setCurrentStep(step);
+  // Update the goToStep function to allow navigation to completed steps
+  const goToStep = async (step: OnboardingStep) => {
+    // Don't allow navigation to steps that aren't available yet
+    // If we're already on this step, no need to navigate
+    if (currentStep === step) {
+      return;
     }
+
+    // If trying to go to the Review step, strictly check if all other steps are completed
+    if (step === OnboardingStep.REVIEW) {
+      const allCompleted = areAllStepsCompleted();
+
+      if (!allCompleted) {
+        toast({
+          title: "Nicht alle Schritte abgeschlossen",
+          description:
+            "Bitte schließen Sie zuerst alle vorherigen Schritte ab.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // If we're trying to go to a step that's already completed, allow it
+    if (isStepCompleted(step)) {
+      setCurrentStep(step);
+      return;
+    }
+
+    // If we're trying to go to a previous step, allow it
+    if (step < currentStep) {
+      setCurrentStep(step);
+      return;
+    }
+
+    // For other steps, check if the previous step is completed
+    const prevStep = step - 1;
+    if (
+      prevStep >= OnboardingStep.GESELLSCHAFT &&
+      isStepCompleted(prevStep as OnboardingStep)
+    ) {
+      setCurrentStep(step);
+      return;
+    }
+
+    // If we get here, the step is not available
+    toast({
+      title: "Schritt nicht verfügbar",
+      description: "Bitte schließen Sie zuerst die vorherigen Schritte ab.",
+      variant: "destructive",
+    });
   };
 
   // Go to the next step
@@ -339,7 +391,7 @@ export const OnboardingProvider = ({
 
   // Go to the previous step
   const prevStep = () => {
-    if (currentStep > OnboardingStep.COMPANY_INFO) {
+    if (currentStep > OnboardingStep.GESELLSCHAFT) {
       const newStep = (currentStep - 1) as OnboardingStep;
 
       // First save the current form data to ensure it's not lost
@@ -412,12 +464,9 @@ export const OnboardingProvider = ({
   // Save progress to the database
   const saveProgress = async (
     latestFormData?: Record<string, any>,
-    showToast: boolean = true,
+    step?: OnboardingStep,
   ) => {
-    if (!subsidiary || !progress) {
-      console.error("Cannot save progress: subsidiary or progress is null");
-      return;
-    }
+    if (!subsidiary || !progress) return;
 
     setIsSaving(true);
     try {
@@ -433,32 +482,50 @@ export const OnboardingProvider = ({
         ...newDataCopy, // Override with new data
       };
 
-      // Ensure formData is a valid object
-      const validFormData =
-        mergedFormData && typeof mergedFormData === "object"
-          ? mergedFormData
-          : {};
+      // Special handling for GIVVE_CARD step to ensure has_givve_card is properly set
+      const isGivveCardStep =
+        step === OnboardingStep.GIVVE_CARD ||
+        currentStep === OnboardingStep.GIVVE_CARD;
+
+      // Normalize the form data to fix any inconsistencies
+      const normalizedFormData = normalizeFormData(mergedFormData);
 
       // Save to onboarding_progress table
       const { data, error } = await supabase
         .from("onboarding_progress")
         .update({
-          current_step: currentStep,
-          form_data: validFormData,
+          current_step: step !== undefined ? step : currentStep,
+          form_data: normalizedFormData,
           last_updated: new Date().toISOString(),
         })
         .eq("id", progress.id)
         .select();
 
       if (error) {
-        console.error("Error saving onboarding progress:", error);
+        console.error("Error saving progress:", error);
         toast({
           title: "Fehler",
-          description: "Fehler beim Speichern des Onboarding-Fortschritts.",
+          description: "Fehler beim Speichern des Fortschritts.",
           variant: "destructive",
         });
-        return;
+      } else {
+        // Update local state with the normalized data
+        setFormData(normalizedFormData);
+
+        // Force areAllStepsCompleted to be called after saving GIVVE_CARD step
+        if (isGivveCardStep) {
+          // Re-check if all steps are completed after a brief delay
+          // This ensures all state updates have propagated
+          setTimeout(() => {
+            areAllStepsCompleted();
+          }, 100);
+        }
       }
+
+      toast({
+        title: "Erfolg",
+        description: "Fortschritt gespeichert.",
+      });
 
       // Also update the subsidiary table with the current step
       const { error: subsidiaryError } = await supabase
@@ -472,16 +539,6 @@ export const OnboardingProvider = ({
         console.error("Error updating subsidiary step:", subsidiaryError);
       }
 
-      if (showToast) {
-        toast({
-          title: "Erfolg",
-          description: "Fortschritt gespeichert.",
-        });
-      }
-
-      // Update the local state with the merged data
-      setFormData(validFormData);
-
       // Verify the save by fetching the latest data
       const { data: verifyData, error: verifyError } = await supabase
         .from("onboarding_progress")
@@ -494,7 +551,8 @@ export const OnboardingProvider = ({
       } else {
         // Update local state if the data from the server is different
         if (
-          JSON.stringify(verifyData.form_data) !== JSON.stringify(validFormData)
+          JSON.stringify(verifyData.form_data) !==
+          JSON.stringify(normalizedFormData)
         ) {
           console.warn(
             "Local form data differs from server data, updating local state",
@@ -607,6 +665,7 @@ export const OnboardingProvider = ({
           description: "Fehler beim Aktualisieren der Gesellschaft.",
           variant: "destructive",
         });
+        setIsSaving(false);
         return;
       }
 
@@ -627,6 +686,7 @@ export const OnboardingProvider = ({
           description: "Fehler beim Aktualisieren des Onboarding-Fortschritts.",
           variant: "destructive",
         });
+        setIsSaving(false);
         return;
       }
 
@@ -768,9 +828,113 @@ export const OnboardingProvider = ({
       router.push("/onboarding/success");
     } catch (error) {
       console.error("Error in completeOnboarding:", error);
-    } finally {
+      toast({
+        title: "Fehler",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
       setIsSaving(false);
     }
+  };
+
+  // Check if a specific step is completed
+  const isStepCompleted = (stepId: OnboardingStep): boolean => {
+    if (!formData) return false;
+
+    // Special case for Review step - only completed if ALL other steps are completed
+    if (stepId === OnboardingStep.REVIEW) {
+      return areAllStepsCompleted();
+    }
+
+    // Special case for GIVVE_CARD step
+    if (stepId === OnboardingStep.GIVVE_CARD) {
+      // The has_givve_card field must exist (can be true or false)
+      return formData.has_givve_card !== undefined;
+    }
+
+    // Get the required fields for this step
+    const requiredFields = STEP_REQUIREMENTS[stepId] || [];
+
+    // If there are no required fields, consider the step completed
+    if (requiredFields.length === 0) return true;
+
+    // Check if all required fields are filled
+    const result = requiredFields.every((field: string) => {
+      let fieldCompleted = false;
+
+      // For array fields, check if they exist and have at least one item
+      if (
+        field === "contacts" ||
+        field === "locations" ||
+        field === "managing_directors" ||
+        field === "beneficial_owners" ||
+        field === "payroll_contacts" ||
+        field === "billing_info"
+      ) {
+        fieldCompleted = !!(
+          formData[field] &&
+          Array.isArray(formData[field]) &&
+          formData[field].length > 0
+        );
+      }
+      // For boolean fields, they just need to exist (can be true or false)
+      else if (
+        field === "has_works_council" ||
+        field === "has_collective_agreement" ||
+        field === "has_givve_card" ||
+        field === "wants_import_file"
+      ) {
+        fieldCompleted = formData[field] !== undefined;
+      }
+      // For payroll_processing_type, check both old and new field names
+      else if (field === "payroll_processing_type") {
+        fieldCompleted = !!(
+          (formData["payroll_processing_type"] &&
+            formData["payroll_processing_type"].trim() !== "") ||
+          (formData["payroll_processing"] &&
+            formData["payroll_processing"].trim() !== "")
+        );
+      }
+      // For other fields, check if they exist and are not empty
+      else {
+        fieldCompleted = !!(
+          formData[field] !== undefined &&
+          (typeof formData[field] !== "string" || formData[field].trim() !== "")
+        );
+      }
+
+      return fieldCompleted;
+    });
+
+    return result;
+  };
+
+  // Check if all steps before the review step are completed
+  const areAllStepsCompleted = () => {
+    // Check each step's required fields
+    const completionStatus = Object.entries(STEP_REQUIREMENTS).reduce(
+      (status, [stepNum, requiredFields]) => {
+        const step = parseInt(stepNum) as OnboardingStep;
+        // Skip the Review step
+        if (step === OnboardingStep.REVIEW) {
+          return status;
+        }
+
+        const isCompleted = isStepCompleted(step);
+        return {
+          ...status,
+          [step]: isCompleted,
+        };
+      },
+      {} as Record<string, boolean>,
+    );
+
+    // All steps (except REVIEW) must be completed
+    const allCompleted = Object.values(completionStatus).every(
+      (isCompleted) => isCompleted,
+    );
+
+    return allCompleted;
   };
 
   return (
@@ -787,6 +951,8 @@ export const OnboardingProvider = ({
         updateFormData,
         saveProgress,
         completeOnboarding,
+        isStepCompleted,
+        areAllStepsCompleted,
       }}
     >
       {children}

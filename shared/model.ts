@@ -9,7 +9,7 @@ export const Roles = {
 
 export const Vertriebspartner = {
   LOHNLAB: "lohnlab",
-  LOHNKONZEPT: "lohnkonzept",
+  LOHNKONZEPTE: "lohnkonzepte",
 } as const;
 
 export const PayrollProcessing = {
@@ -99,7 +99,7 @@ type CompanySchemaType = z.ZodObject<{
   id: z.ZodString;
   name: z.ZodString;
   vertriebspartner: z.ZodEnum<
-    [typeof Vertriebspartner.LOHNLAB, typeof Vertriebspartner.LOHNKONZEPT]
+    [typeof Vertriebspartner.LOHNLAB, typeof Vertriebspartner.LOHNKONZEPTE]
   >;
   created_at: z.ZodDate;
   // Relations
@@ -204,43 +204,13 @@ type SubsidiarySchemaType = z.ZodObject<{
   givve_company_logo_url: z.ZodOptional<z.ZodString>;
   givve_card_design_url: z.ZodOptional<z.ZodString>;
   givve_standard_postal_code: z.ZodOptional<z.ZodString>;
-  givve_card_second_line: z.ZodOptional<z.ZodString>; // max 21 characters
-  givve_loading_date: z.ZodOptional<
-    z.ZodEnum<
-      [
-        typeof GivveLoadingDates.DAY_10,
-        typeof GivveLoadingDates.DAY_15,
-        typeof GivveLoadingDates.DAY_30,
-      ]
-    >
-  >;
-  givve_industry_category: z.ZodOptional<
-    z.ZodEnum<
-      [
-        typeof GivveIndustryCategories.AGRICULTURE_FORESTRY_FISHING,
-        typeof GivveIndustryCategories.MANUFACTURING,
-        typeof GivveIndustryCategories.ENERGY_SUPPLY,
-        typeof GivveIndustryCategories.WATER_WASTE_MANAGEMENT,
-        typeof GivveIndustryCategories.MINING_QUARRYING,
-        typeof GivveIndustryCategories.CONSTRUCTION,
-        typeof GivveIndustryCategories.TRADE_VEHICLE_REPAIR,
-        typeof GivveIndustryCategories.REAL_ESTATE,
-        typeof GivveIndustryCategories.TRANSPORTATION_STORAGE,
-        typeof GivveIndustryCategories.HOSPITALITY,
-        typeof GivveIndustryCategories.INFORMATION_COMMUNICATION,
-        typeof GivveIndustryCategories.FINANCIAL_INSURANCE,
-        typeof GivveIndustryCategories.OTHER_BUSINESS_SERVICES,
-        typeof GivveIndustryCategories.PROFESSIONAL_SCIENTIFIC_TECHNICAL,
-        typeof GivveIndustryCategories.PUBLIC_ADMINISTRATION,
-        typeof GivveIndustryCategories.EDUCATION,
-        typeof GivveIndustryCategories.PRIVATE_HOUSEHOLDS,
-        typeof GivveIndustryCategories.HEALTH_SOCIAL_SERVICES,
-        typeof GivveIndustryCategories.ARTS_ENTERTAINMENT,
-        typeof GivveIndustryCategories.OTHER_SERVICES,
-        typeof GivveIndustryCategories.EXTRATERRITORIAL_ORGANIZATIONS,
-      ]
-    >
-  >;
+  givve_card_second_line: z.ZodOptional<z.ZodString>;
+  givve_loading_date: z.ZodOptional<z.ZodString>;
+  givve_industry_category: z.ZodOptional<z.ZodString>;
+  // Import file preferences
+  wants_import_file: z.ZodOptional<z.ZodBoolean>;
+  import_date_type: z.ZodOptional<z.ZodEnum<["standard", "custom"]>>;
+  custom_import_date: z.ZodOptional<z.ZodString>;
   // Headquarters information (Hauptniederlassung)
   headquarters_street: z.ZodOptional<z.ZodString>;
   headquarters_house_number: z.ZodOptional<z.ZodString>;
@@ -298,6 +268,12 @@ type AnsprechpartnerSchemaType = z.ZodObject<{
   firstname: z.ZodString;
   lastname: z.ZodString;
   email: z.ZodString;
+  phone: z.ZodOptional<z.ZodString>;
+  category: z.ZodOptional<z.ZodString>;
+  categories: z.ZodOptional<z.ZodArray<z.ZodString>>;
+  company_name: z.ZodOptional<z.ZodString>;
+  has_cockpit_access: z.ZodOptional<z.ZodBoolean>;
+  created_at: z.ZodOptional<z.ZodDate>;
 }>;
 
 type ManagingDirectorSchemaType = z.ZodObject<{
@@ -357,7 +333,7 @@ export const companySchema: CompanySchemaType = z.object({
   name: z.string(),
   vertriebspartner: z.enum([
     Vertriebspartner.LOHNLAB,
-    Vertriebspartner.LOHNKONZEPT,
+    Vertriebspartner.LOHNKONZEPTE,
   ]),
   created_at: z.date(),
   // Relations
@@ -452,39 +428,13 @@ export const subsidiarySchema: SubsidiarySchemaType = z.object({
   givve_company_logo_url: z.string().optional(),
   givve_card_design_url: z.string().optional(),
   givve_standard_postal_code: z.string().optional(),
-  givve_card_second_line: z.string().optional(), // max 21 characters
-  givve_loading_date: z
-    .enum([
-      GivveLoadingDates.DAY_10,
-      GivveLoadingDates.DAY_15,
-      GivveLoadingDates.DAY_30,
-    ])
-    .optional(),
-  givve_industry_category: z
-    .enum([
-      GivveIndustryCategories.AGRICULTURE_FORESTRY_FISHING,
-      GivveIndustryCategories.MANUFACTURING,
-      GivveIndustryCategories.ENERGY_SUPPLY,
-      GivveIndustryCategories.WATER_WASTE_MANAGEMENT,
-      GivveIndustryCategories.MINING_QUARRYING,
-      GivveIndustryCategories.CONSTRUCTION,
-      GivveIndustryCategories.TRADE_VEHICLE_REPAIR,
-      GivveIndustryCategories.REAL_ESTATE,
-      GivveIndustryCategories.TRANSPORTATION_STORAGE,
-      GivveIndustryCategories.HOSPITALITY,
-      GivveIndustryCategories.INFORMATION_COMMUNICATION,
-      GivveIndustryCategories.FINANCIAL_INSURANCE,
-      GivveIndustryCategories.OTHER_BUSINESS_SERVICES,
-      GivveIndustryCategories.PROFESSIONAL_SCIENTIFIC_TECHNICAL,
-      GivveIndustryCategories.PUBLIC_ADMINISTRATION,
-      GivveIndustryCategories.EDUCATION,
-      GivveIndustryCategories.PRIVATE_HOUSEHOLDS,
-      GivveIndustryCategories.HEALTH_SOCIAL_SERVICES,
-      GivveIndustryCategories.ARTS_ENTERTAINMENT,
-      GivveIndustryCategories.OTHER_SERVICES,
-      GivveIndustryCategories.EXTRATERRITORIAL_ORGANIZATIONS,
-    ])
-    .optional(),
+  givve_card_second_line: z.string().optional(),
+  givve_loading_date: z.string().optional(),
+  givve_industry_category: z.string().optional(),
+  // Import file preferences
+  wants_import_file: z.boolean().optional(),
+  import_date_type: z.enum(["standard", "custom"]).optional(),
+  custom_import_date: z.string().optional(),
   // Headquarters information (Hauptniederlassung)
   headquarters_street: z.string().optional(),
   headquarters_house_number: z.string().optional(),
@@ -538,6 +488,12 @@ export const ansprechpartnerSchema: AnsprechpartnerSchemaType = z.object({
   firstname: z.string(),
   lastname: z.string(),
   email: z.string().email(),
+  phone: z.string().optional(),
+  category: z.string().optional(),
+  categories: z.array(z.string()).optional(),
+  company_name: z.string().optional(),
+  has_cockpit_access: z.boolean().optional(),
+  created_at: z.date().optional(),
 });
 
 export const managingDirectorSchema: ManagingDirectorSchemaType = z.object({
