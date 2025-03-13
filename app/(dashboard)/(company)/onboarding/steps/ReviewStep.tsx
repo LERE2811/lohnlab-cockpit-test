@@ -396,7 +396,8 @@ export const ReviewStep = () => {
               <h3 className="font-medium">Bereit zum Abschluss</h3>
               <p className="text-sm text-muted-foreground">
                 Sie haben alle erforderlichen Informationen eingegeben. Klicken
-                Sie auf "Onboarding abschließen", um den Prozess abzuschließen.
+                Sie auf &quot;Onboarding abschließen&quot;, um den Prozess
+                abzuschließen.
               </p>
             </div>
           </div>

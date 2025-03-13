@@ -60,7 +60,7 @@ const formSchema = z.object({
     .string()
     .optional()
     .refine(
-      (val, ctx) => {
+      (val) => {
         // If import_date_type is "custom", custom_import_date is required
         return true;
       },
