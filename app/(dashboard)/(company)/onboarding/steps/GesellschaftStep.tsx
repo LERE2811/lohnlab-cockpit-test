@@ -32,28 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FileUpload } from "@/components/FileUpload";
 import { useCompany } from "@/context/company-context";
 
-const companyForms = [
-  { value: "GmbH", label: "GmbH" },
-  { value: "AG", label: "AG" },
-  { value: "UG", label: "UG (haftungsbeschränkt)" },
-  { value: "GbR", label: "GbR" },
-  { value: "KG", label: "KG" },
-  { value: "OHG", label: "OHG" },
-  { value: "GmbH & Co. KG", label: "GmbH & Co. KG" },
-  { value: "juristische Person", label: "juristische Person" },
-  { value: "KdöR", label: "KdöR" },
-  { value: "PartG", label: "PartG" },
-  { value: "PartG mbB", label: "PartG mbB" },
-  { value: "e.V.", label: "e.V." },
-  { value: "eG", label: "eG" },
-  { value: "Freiberufler", label: "Freiberufler" },
-  { value: "Einzelunternehmen", label: "Einzelunternehmen" },
-];
-
 const formSchema = z.object({
-  company_form: z
-    .string()
-    .min(1, "Bitte wählen Sie eine Gesellschaftsform aus"),
   has_works_council: z.boolean(),
   has_collective_agreement: z.boolean(),
   collective_agreement_type: z.string().optional(),
@@ -80,7 +59,6 @@ export const GesellschaftStep = () => {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      company_form: "",
       has_works_council: false,
       has_collective_agreement: false,
       collective_agreement_type: "",
@@ -93,11 +71,7 @@ export const GesellschaftStep = () => {
   // Load existing data into the form
   useEffect(() => {
     if (formData) {
-      // Handle the company_form/legal_form mismatch
-      const companyForm = formData.company_form || formData.legal_form || "";
-
       form.reset({
-        company_form: companyForm,
         has_works_council: formData.has_works_council || false,
         has_collective_agreement: formData.has_collective_agreement || false,
         collective_agreement_type: formData.collective_agreement_type || "",
@@ -136,7 +110,6 @@ export const GesellschaftStep = () => {
 
     // Basic required field validation
     let valid =
-      !!currentValues.company_form &&
       currentValues.has_works_council !== undefined &&
       currentValues.has_collective_agreement !== undefined;
 
@@ -154,10 +127,6 @@ export const GesellschaftStep = () => {
   // Add this function to get specific validation messages
   const getValidationMessage = () => {
     const values = form.getValues();
-
-    if (!values.company_form) {
-      return "Bitte wählen Sie eine Rechtsform aus.";
-    }
 
     if (values.has_works_council === undefined) {
       return "Bitte geben Sie an, ob ein Betriebsrat existiert.";
@@ -244,31 +213,6 @@ export const GesellschaftStep = () => {
     >
       <Form {...form}>
         <div className="space-y-6">
-          <FormField
-            control={form.control}
-            name="company_form"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Gesellschaftsform</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Bitte wählen Sie eine Gesellschaftsform" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {companyForms.map((form) => (
-                      <SelectItem key={form.value} value={form.value}>
-                        {form.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <FormField
             control={form.control}
             name="has_works_council"

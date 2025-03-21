@@ -1,6 +1,6 @@
 "use client";
 
-import { useOnboarding } from "../context/onboarding-context";
+import { useOnboarding, OnboardingStep } from "../context/onboarding-context";
 import { StepLayout } from "../components/StepLayout";
 import {
   Card,
@@ -12,17 +12,69 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useCompany } from "@/context/company-context";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
 export const ReviewStep = () => {
-  const { formData, completeOnboarding } = useOnboarding();
+  const {
+    formData,
+    completeOnboarding,
+    isStepCompleted,
+    areAllStepsCompleted,
+  } = useOnboarding();
   const { subsidiary } = useCompany();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [hasMissingInfo, setHasMissingInfo] = useState(false);
+  const [missingInfoDetails, setMissingInfoDetails] = useState<string[]>([]);
+
+  // Check for missing information
+  useEffect(() => {
+    const allCompleted = areAllStepsCompleted();
+
+    if (!allCompleted) {
+      const missingItems: string[] = [];
+
+      if (!isStepCompleted(OnboardingStep.GESELLSCHAFT)) {
+        missingItems.push("Gesellschaft: Grundlegende Informationen fehlen.");
+      }
+
+      if (!isStepCompleted(OnboardingStep.STANDORTE)) {
+        missingItems.push(
+          "Standorte: Informationen zu mindestens einem Standort fehlen.",
+        );
+      }
+
+      if (!isStepCompleted(OnboardingStep.LOHNABRECHNUNG)) {
+        missingItems.push(
+          "Lohnabrechnung: Informationen zur Lohnabrechnung fehlen.",
+        );
+      }
+
+      if (!isStepCompleted(OnboardingStep.BUCHHALTUNG)) {
+        missingItems.push("Buchhaltung: Informationen zur Buchhaltung fehlen.");
+      }
+
+      if (!isStepCompleted(OnboardingStep.ANSPRECHPARTNER)) {
+        missingItems.push(
+          "Ansprechpartner: Mindestens ein Ansprechpartner fehlt.",
+        );
+      }
+
+      if (!isStepCompleted(OnboardingStep.GIVVE_CARD)) {
+        missingItems.push("givve® Card: Entscheidung zur givve® Card fehlt.");
+      }
+
+      setHasMissingInfo(true);
+      setMissingInfoDetails(missingItems);
+    } else {
+      setHasMissingInfo(false);
+      setMissingInfoDetails([]);
+    }
+  }, [formData, isStepCompleted, areAllStepsCompleted]);
 
   const getPayrollProcessingText = (value: string) => {
     switch (value) {
@@ -47,6 +99,17 @@ export const ReviewStep = () => {
   };
 
   const handleSubmit = async () => {
+    // Check if all required information is available
+    if (hasMissingInfo) {
+      toast({
+        title: "Fehlende Informationen",
+        description:
+          "Bitte vervollständigen Sie alle erforderlichen Informationen, bevor Sie das Onboarding abschließen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await completeOnboarding();
@@ -389,16 +452,40 @@ export const ReviewStep = () => {
           </CardContent>
         </Card>
 
-        <div className="rounded-lg border bg-muted/30 p-4">
+        <div
+          className={`rounded-lg border ${hasMissingInfo ? "border-red-200 bg-red-50" : "bg-muted/30"} p-4`}
+        >
           <div className="flex items-start space-x-3">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-500" />
+            {hasMissingInfo ? (
+              <AlertCircle className="mt-0.5 h-5 w-5 text-red-500" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-500" />
+            )}
             <div>
-              <h3 className="font-medium">Bereit zum Abschluss</h3>
-              <p className="text-sm text-muted-foreground">
-                Sie haben alle erforderlichen Informationen eingegeben. Klicken
-                Sie auf &quot;Onboarding abschließen&quot;, um den Prozess
-                abzuschließen.
-              </p>
+              <h3 className="font-medium">
+                {hasMissingInfo
+                  ? "Fehlende Informationen"
+                  : "Bereit zum Abschluss"}
+              </h3>
+              {hasMissingInfo ? (
+                <div>
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Bevor Sie das Onboarding abschließen können, müssen Sie noch
+                    folgende Informationen ergänzen:
+                  </p>
+                  <ul className="list-inside list-disc space-y-1 text-sm text-red-600">
+                    {missingInfoDetails.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sie haben alle erforderlichen Informationen eingegeben.
+                  Klicken Sie auf &quot;Onboarding abschließen&quot;, um den
+                  Prozess abzuschließen.
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -73,6 +73,80 @@ const ensureLocationIds = (locations: any[]) => {
   });
 };
 
+// Add these helper functions for IBAN validation
+const formatIban = (iban: string): string => {
+  // Remove all spaces and convert to uppercase
+  return iban.replace(/\s/g, "").toUpperCase();
+};
+
+// Function to validate IBAN
+const validateIban = (iban: string): { isValid: boolean; message?: string } => {
+  if (!iban) {
+    return { isValid: false };
+  }
+
+  // Format IBAN (remove spaces, convert to uppercase)
+  const formattedIban = formatIban(iban);
+
+  // Check if IBAN matches basic format
+  if (!ibanRegex.test(formattedIban)) {
+    return {
+      isValid: false,
+      message: "Format ungültig (z.B. DE89 3704 0044 0532 0130 00)",
+    };
+  }
+
+  try {
+    // Reorder: Move the first 4 characters to the end
+    const reordered =
+      formattedIban.substring(4) + formattedIban.substring(0, 4);
+
+    // Replace letters with numbers (A=10, B=11, ..., Z=35)
+    let numeric = "";
+    for (let i = 0; i < reordered.length; i++) {
+      const char = reordered.charAt(i);
+      if (/[A-Z]/.test(char)) {
+        // Convert letter to number (A=10, B=11, etc.)
+        numeric += char.charCodeAt(0) - 55;
+      } else {
+        numeric += char;
+      }
+    }
+
+    // Handle large number calculation by breaking it into chunks
+    // (JavaScript can't handle numbers this large precisely)
+    let remainder = 0;
+    const chunkSize = 10;
+
+    for (let i = 0; i < numeric.length; i += chunkSize) {
+      const chunk = remainder + numeric.substring(i, i + chunkSize);
+      remainder = parseInt(chunk, 10) % 97;
+    }
+
+    // IBAN is valid if remainder is 1
+    return {
+      isValid: remainder === 1,
+      message:
+        remainder !== 1
+          ? "IBAN ist ungültig (Prüfsumme fehlerhaft)"
+          : undefined,
+    };
+  } catch (error) {
+    console.error("Error validating IBAN:", error);
+    return {
+      isValid: false,
+      message: "Fehler bei der Validierung",
+    };
+  }
+};
+
+// Function to format IBAN with spaces for display
+const formatIbanForDisplay = (iban: string): string => {
+  const formattedIban = formatIban(iban);
+  // Add a space every 4 characters
+  return formattedIban.replace(/(.{4})/g, "$1 ").trim();
+};
+
 export const BuchhaltungStep = () => {
   const { formData, updateFormData, saveProgress, nextStep } = useOnboarding();
   const [billingInfos, setBillingInfos] = useState<BillingInfo[]>([
@@ -81,6 +155,7 @@ export const BuchhaltungStep = () => {
     },
   ]);
   const [hasMultipleLocations, setHasMultipleLocations] = useState(false);
+  const [companyName, setCompanyName] = useState<string>("");
 
   // Use a ref to prevent infinite loops
   const isUpdating = useRef(false);
@@ -94,10 +169,22 @@ export const BuchhaltungStep = () => {
     },
   });
 
-  // Check if we have multiple locations
+  // Check if we have multiple locations and store company name
   useEffect(() => {
-    if (formData && formData.locations && Array.isArray(formData.locations)) {
-      setHasMultipleLocations(formData.locations.length > 1);
+    if (formData) {
+      // Check for multiple locations
+      if (formData.locations && Array.isArray(formData.locations)) {
+        setHasMultipleLocations(formData.locations.length > 1);
+      }
+
+      // Store company name for pre-populating account holder
+      if (formData.company_name) {
+        setCompanyName(formData.company_name);
+      } else if (formData.legal_name) {
+        setCompanyName(formData.legal_name);
+      } else if (formData.name) {
+        setCompanyName(formData.name);
+      }
     }
   }, [formData]);
 
@@ -147,10 +234,21 @@ export const BuchhaltungStep = () => {
           location_id: location.id || generateLocationId(),
           location_name: location.name || "",
           iban: "",
-          account_holder: "",
+          account_holder: companyName || "", // Pre-populate with company name
           billing_email: "",
           phone: "",
         }));
+      }
+
+      // Now pre-populate existing billing info if account holder is empty
+      // Pre-populate account holder with company name if empty
+      if (companyName && billingInfo.length > 0) {
+        billingInfo = billingInfo.map((info: BillingInfo) => {
+          if (!info.account_holder) {
+            return { ...info, account_holder: companyName };
+          }
+          return info;
+        });
       }
 
       // Set state
@@ -193,7 +291,7 @@ export const BuchhaltungStep = () => {
             location_id: location.id || generateLocationId(),
             location_name: location.name || "",
             iban: templateInfo.iban || "",
-            account_holder: templateInfo.account_holder || "",
+            account_holder: templateInfo.account_holder || companyName || "",
             billing_email: templateInfo.billing_email || "",
             phone: templateInfo.phone || "",
           }));
@@ -411,11 +509,20 @@ export const BuchhaltungStep = () => {
       // Make a deep copy of the current billing infos
       const updatedBillingInfos = [...billingInfos];
 
-      // Update the specific field
-      updatedBillingInfos[index] = {
-        ...updatedBillingInfos[index],
-        [field]: value,
-      };
+      // Special handling for IBAN
+      if (field === "iban") {
+        // Store the IBAN in uppercase without spaces
+        updatedBillingInfos[index] = {
+          ...updatedBillingInfos[index],
+          [field]: formatIban(value),
+        };
+      } else {
+        // Update the specific field normally
+        updatedBillingInfos[index] = {
+          ...updatedBillingInfos[index],
+          [field]: value,
+        };
+      }
 
       // First update the local state
       setBillingInfos(updatedBillingInfos);
@@ -544,21 +651,55 @@ export const BuchhaltungStep = () => {
                           </FormLabel>
                           <Input
                             id={`billing-${index}-iban`}
-                            placeholder="z.B. DE12345678901234567890"
-                            value={billingInfo.iban || ""}
-                            onChange={(e) =>
-                              updateBillingInfo(index, "iban", e.target.value)
+                            placeholder="z.B. DE89 3704 0044 0532 0130 00"
+                            value={
+                              billingInfo.iban
+                                ? formatIbanForDisplay(billingInfo.iban)
+                                : ""
+                            }
+                            onChange={(e) => {
+                              // Format and validate on change
+                              const input = e.target.value;
+                              updateBillingInfo(index, "iban", input);
+
+                              // Only validate if there's a value
+                              if (input.trim()) {
+                                const validation = validateIban(input);
+                                if (!validation.isValid && validation.message) {
+                                  form.setError(
+                                    `billing_info.${index}.iban` as any,
+                                    {
+                                      type: "manual",
+                                      message: validation.message,
+                                    },
+                                  );
+                                } else {
+                                  form.clearErrors(
+                                    `billing_info.${index}.iban` as any,
+                                  );
+                                }
+                              }
+                            }}
+                            className={
+                              billingInfo.iban
+                                ? validateIban(billingInfo.iban).isValid
+                                  ? "border-green-500"
+                                  : "border-red-500"
+                                : ""
                             }
                           />
-                          {form.formState.errors.billing_info?.[index]
-                            ?.iban && (
-                            <p className="text-sm text-destructive">
-                              {
-                                form.formState.errors.billing_info[index]?.iban
-                                  ?.message
-                              }
-                            </p>
-                          )}
+                          {billingInfo.iban &&
+                            (validateIban(billingInfo.iban).isValid ? (
+                              <p className="text-sm text-green-500">
+                                IBAN ist gültig
+                              </p>
+                            ) : (
+                              <p className="text-sm text-destructive">
+                                {validateIban(billingInfo.iban).message ||
+                                  form.formState.errors.billing_info?.[index]
+                                    ?.iban?.message}
+                              </p>
+                            ))}
                         </div>
                         <div className="space-y-2">
                           <FormLabel
@@ -568,7 +709,11 @@ export const BuchhaltungStep = () => {
                           </FormLabel>
                           <Input
                             id={`billing-${index}-account-holder`}
-                            placeholder="z.B. Max Mustermann GmbH"
+                            placeholder={
+                              companyName
+                                ? `z.B. ${companyName}`
+                                : "z.B. Max Mustermann GmbH"
+                            }
                             value={billingInfo.account_holder || ""}
                             onChange={(e) =>
                               updateBillingInfo(

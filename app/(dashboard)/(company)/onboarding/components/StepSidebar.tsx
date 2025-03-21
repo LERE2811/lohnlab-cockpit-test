@@ -12,7 +12,6 @@ import {
   Home,
   UserCheck,
   ClipboardCheck,
-  CheckCircle,
   Lock,
 } from "lucide-react";
 import {
@@ -207,11 +206,6 @@ export const StepSidebar = () => {
               {/* Show lock icon for unavailable steps */}
               {!isAvailable && !isActive && (
                 <Lock className="h-4 w-4 text-muted-foreground/40" />
-              )}
-
-              {/* Show checkmark for completed steps */}
-              {isCompleted && !isActive && (
-                <CheckCircle className="h-4 w-4 text-green-500" />
               )}
             </button>
           );

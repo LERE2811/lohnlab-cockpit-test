@@ -54,6 +54,115 @@ const bundeslaender = [
   { value: "thueringen", label: "Thüringen" },
 ];
 
+// PLZ-Bereiche nach Bundesland
+const plzToBundesland: { [key: string]: string } = {
+  "01": "sachsen",
+  "02": "sachsen",
+  "03": "brandenburg",
+  "04": "sachsen",
+  "06": "sachsen-anhalt",
+  "07": "thueringen",
+  "08": "sachsen",
+  "09": "sachsen",
+  "10": "berlin",
+  "12": "berlin",
+  "13": "berlin",
+  "14": "brandenburg",
+  "15": "brandenburg",
+  "16": "brandenburg",
+  "17": "mecklenburg-vorpommern",
+  "18": "mecklenburg-vorpommern",
+  "19": "mecklenburg-vorpommern",
+  "20": "hamburg",
+  "21": "hamburg",
+  "22": "hamburg",
+  "23": "schleswig-holstein",
+  "24": "schleswig-holstein",
+  "25": "schleswig-holstein",
+  "26": "niedersachsen",
+  "27": "niedersachsen",
+  "28": "bremen",
+  "29": "niedersachsen",
+  "30": "niedersachsen",
+  "31": "niedersachsen",
+  "32": "nordrhein-westfalen",
+  "33": "nordrhein-westfalen",
+  "34": "hessen",
+  "35": "hessen",
+  "36": "thueringen",
+  "37": "niedersachsen",
+  "38": "niedersachsen",
+  "39": "sachsen-anhalt",
+  "40": "nordrhein-westfalen",
+  "41": "nordrhein-westfalen",
+  "42": "nordrhein-westfalen",
+  "44": "nordrhein-westfalen",
+  "45": "nordrhein-westfalen",
+  "46": "nordrhein-westfalen",
+  "47": "nordrhein-westfalen",
+  "48": "nordrhein-westfalen",
+  "49": "niedersachsen",
+  "50": "nordrhein-westfalen",
+  "51": "nordrhein-westfalen",
+  "52": "nordrhein-westfalen",
+  "53": "nordrhein-westfalen",
+  "54": "rheinland-pfalz",
+  "55": "rheinland-pfalz",
+  "56": "rheinland-pfalz",
+  "57": "nordrhein-westfalen",
+  "58": "nordrhein-westfalen",
+  "59": "nordrhein-westfalen",
+  "60": "hessen",
+  "61": "hessen",
+  "63": "hessen",
+  "64": "hessen",
+  "65": "hessen",
+  "66": "saarland",
+  "67": "rheinland-pfalz",
+  "68": "baden-wuerttemberg",
+  "69": "baden-wuerttemberg",
+  "70": "baden-wuerttemberg",
+  "71": "baden-wuerttemberg",
+  "72": "baden-wuerttemberg",
+  "73": "baden-wuerttemberg",
+  "74": "baden-wuerttemberg",
+  "75": "baden-wuerttemberg",
+  "76": "baden-wuerttemberg",
+  "77": "baden-wuerttemberg",
+  "78": "baden-wuerttemberg",
+  "79": "baden-wuerttemberg",
+  "80": "bayern",
+  "81": "bayern",
+  "82": "bayern",
+  "83": "bayern",
+  "84": "bayern",
+  "85": "bayern",
+  "86": "bayern",
+  "87": "bayern",
+  "88": "bayern",
+  "89": "bayern",
+  "90": "bayern",
+  "91": "bayern",
+  "92": "bayern",
+  "93": "bayern",
+  "94": "bayern",
+  "95": "bayern",
+  "96": "bayern",
+  "97": "bayern",
+  "98": "thueringen",
+  "99": "thueringen",
+};
+
+// Function to get Bundesland from PLZ
+const getBundeslandFromPLZ = (plz: string): string => {
+  // Ensure the PLZ is a string and extract the first two digits
+  const plzString = String(plz).trim();
+  const plzPrefix = plzString.substring(0, 2);
+
+  // Return the matching bundesland value or empty string if not found
+  return plzToBundesland[plzPrefix] || "";
+};
+
 const locationSchema = z.object({
   name: z.string().min(1, "Bitte geben Sie eine Bezeichnung ein"),
   street: z.string().min(1, "Bitte geben Sie eine Straße ein"),
@@ -151,16 +260,53 @@ export const StandorteStep = () => {
     form.setValue("locations", updatedLocations);
   };
 
+  // Add helper function to combine street and house number
+  const getCombinedStreetAddress = (
+    street: string,
+    houseNumber: string,
+  ): string => {
+    if (!street) return "";
+    if (!houseNumber) return street;
+    return `${street} ${houseNumber}`;
+  };
+
   const updateLocation = (
     index: number,
-    field: keyof LocationValues,
+    field: keyof LocationValues | "combinedStreet",
     value: any,
   ) => {
     const updatedLocations = [...locations];
-    updatedLocations[index] = {
-      ...updatedLocations[index],
-      [field]: value,
-    };
+
+    // Special handling for the combined street field
+    if (field === "combinedStreet") {
+      // Regex to extract house number (pattern: text followed by space and then numbers with optional letters)
+      const match = value.match(/^(.*?)\s+(\d+\s*\w*)$/);
+
+      if (match) {
+        // If pattern is found, separate street and house number
+        updatedLocations[index].street = match[1];
+        updatedLocations[index].house_number = match[2];
+      } else {
+        // If no house number pattern is found, store everything in street
+        updatedLocations[index].street = value;
+        updatedLocations[index].house_number = "";
+      }
+    } else {
+      // Regular field update
+      updatedLocations[index] = {
+        ...updatedLocations[index],
+        [field]: value,
+      };
+    }
+
+    // If the field is postal_code and it has at least 2 digits, set the state automatically
+    if (field === "postal_code" && value.length >= 2) {
+      const bundesland = getBundeslandFromPLZ(value);
+      if (bundesland) {
+        updatedLocations[index].state = bundesland;
+      }
+    }
+
     setLocations(updatedLocations);
     form.setValue("locations", updatedLocations);
   };
@@ -204,30 +350,20 @@ export const StandorteStep = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="space-y-2 md:col-span-2">
-                    <FormLabel htmlFor={`location-${index}-street`}>
-                      Straße
-                    </FormLabel>
-                    <Input
-                      id={`location-${index}-street`}
-                      placeholder="z.B. Hauptstraße"
-                      value={location.street}
-                      onChange={(e) =>
-                        updateLocation(index, "street", e.target.value)
-                      }
-                    />
-                  </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-1">
                   <div className="space-y-2">
-                    <FormLabel htmlFor={`location-${index}-house-number`}>
-                      Hausnummer
+                    <FormLabel htmlFor={`location-${index}-combined-street`}>
+                      Straße und Hausnummer
                     </FormLabel>
                     <Input
-                      id={`location-${index}-house-number`}
-                      placeholder="z.B. 1"
-                      value={location.house_number}
+                      id={`location-${index}-combined-street`}
+                      placeholder="z.B. Hauptstraße 1"
+                      value={getCombinedStreetAddress(
+                        location.street,
+                        location.house_number,
+                      )}
                       onChange={(e) =>
-                        updateLocation(index, "house_number", e.target.value)
+                        updateLocation(index, "combinedStreet", e.target.value)
                       }
                     />
                   </div>
@@ -240,7 +376,7 @@ export const StandorteStep = () => {
                     </FormLabel>
                     <Input
                       id={`location-${index}-postal-code`}
-                      placeholder="z.B. 80331"
+                      placeholder="z.B. 80331 (Bundesland wird automatisch erkannt)"
                       value={location.postal_code}
                       onChange={(e) =>
                         updateLocation(index, "postal_code", e.target.value)
