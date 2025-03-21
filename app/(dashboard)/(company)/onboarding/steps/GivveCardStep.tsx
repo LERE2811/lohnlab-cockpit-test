@@ -52,12 +52,19 @@ export const GivveCardStep = () => {
   }, [formData, form]);
 
   const onSubmit = async (values: FormValues) => {
+    // Ensure has_givve_card is explicitly a boolean value
+    const updatedValues = {
+      has_givve_card: values.has_givve_card === true,
+    };
+
+    console.log("GivveCardStep saving value:", updatedValues.has_givve_card);
+
     // Update form data in context immediately
-    updateFormData(values);
+    updateFormData(updatedValues);
 
     // Save to database and ensure we wait for it to complete
     try {
-      await saveProgress(values);
+      await saveProgress(updatedValues);
 
       // Proceed to next step
       nextStep();
@@ -82,7 +89,12 @@ export const GivveCardStep = () => {
               <FormItem className="space-y-3">
                 <FormControl>
                   <RadioGroup
-                    onValueChange={(value) => field.onChange(value === "true")}
+                    onValueChange={(value) => {
+                      console.log("Radio value changed to:", value);
+                      const boolValue = value === "true";
+                      console.log("Setting has_givve_card to:", boolValue);
+                      field.onChange(boolValue);
+                    }}
                     defaultValue={field.value ? "true" : "false"}
                     className="flex flex-col space-y-3"
                   >

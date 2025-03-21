@@ -164,7 +164,7 @@ const getBundeslandFromPLZ = (plz: string): string => {
 };
 
 const locationSchema = z.object({
-  name: z.string().min(1, "Bitte geben Sie eine Bezeichnung ein"),
+  name: z.string().optional(),
   street: z.string().min(1, "Bitte geben Sie eine Straße ein"),
   house_number: z.string().min(1, "Bitte geben Sie eine Hausnummer ein"),
   postal_code: z
@@ -228,8 +228,26 @@ export const StandorteStep = () => {
   }, [formData, form]);
 
   const onSubmit = async (values: FormValues) => {
-    updateFormData(values);
-    await saveProgress(values);
+    // Set default names for locations without names
+    const updatedLocations = values.locations.map((location, index) => {
+      if (!location.name || location.name.trim() === "") {
+        return {
+          ...location,
+          name: location.is_headquarters
+            ? "Hauptniederlassung"
+            : `Niederlassung ${index + 1}`,
+        };
+      }
+      return location;
+    });
+
+    const updatedValues = {
+      ...values,
+      locations: updatedLocations,
+    };
+
+    updateFormData(updatedValues);
+    await saveProgress(updatedValues);
     nextStep();
   };
 
