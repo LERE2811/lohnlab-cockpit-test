@@ -18,6 +18,7 @@ import { useEffect, useState, useRef } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCompany } from "@/context/company-context";
 
 // IBAN validation regex
 const ibanRegex = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}$/;
@@ -149,6 +150,7 @@ const formatIbanForDisplay = (iban: string): string => {
 
 export const BuchhaltungStep = () => {
   const { formData, updateFormData, saveProgress, nextStep } = useOnboarding();
+  const { subsidiary } = useCompany();
   const [billingInfos, setBillingInfos] = useState<BillingInfo[]>([
     {
       billing_email: "",
@@ -184,9 +186,12 @@ export const BuchhaltungStep = () => {
         setCompanyName(formData.legal_name);
       } else if (formData.name) {
         setCompanyName(formData.name);
+      } else if (subsidiary && subsidiary.name) {
+        // Try to get company name from subsidiary
+        setCompanyName(subsidiary.name);
       }
     }
-  }, [formData]);
+  }, [formData, subsidiary]);
 
   // Load existing data into the form
   useEffect(() => {

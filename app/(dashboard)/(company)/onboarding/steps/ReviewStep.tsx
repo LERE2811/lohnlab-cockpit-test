@@ -149,23 +149,11 @@ export const ReviewStep = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">
-                  Gesellschaftsform
-                </h4>
-                <p>
-                  {formData.company_form ||
-                    formData.legal_form ||
-                    "Nicht angegeben"}
-                </p>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-muted-foreground">
-                  Betriebsrat
-                </h4>
-                <p>{formData.has_works_council ? "Ja" : "Nein"}</p>
-              </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Betriebsrat
+              </h4>
+              <p>{formData.has_works_council ? "Ja" : "Nein"}</p>
             </div>
             <Separator />
             <div>
@@ -424,7 +412,18 @@ export const ReviewStep = () => {
                       )}
                       <p className="mt-1 text-sm">
                         Zugang zum Cockpit:{" "}
-                        {contact.has_cockpit_access ? "Ja" : "Nein"}
+                        {contact.has_cockpit_access ? (
+                          <>
+                            <span className="font-medium text-green-600">
+                              Ja
+                            </span>
+                            <span className="ml-1 text-xs text-muted-foreground">
+                              (Wird beim Abschluss des Onboardings eingeladen)
+                            </span>
+                          </>
+                        ) : (
+                          "Nein"
+                        )}
                       </p>
                     </div>
                   </div>

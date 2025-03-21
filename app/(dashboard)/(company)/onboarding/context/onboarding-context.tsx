@@ -22,7 +22,6 @@ export enum OnboardingStep {
 // Define the step requirements
 export const STEP_REQUIREMENTS = {
   [OnboardingStep.GESELLSCHAFT]: [
-    "company_form",
     "has_works_council",
     "has_collective_agreement",
   ],
@@ -816,6 +815,60 @@ export const OnboardingProvider = ({
               "Fehler beim Speichern der wirtschaftlich Berechtigten.",
             variant: "destructive",
           });
+        }
+      }
+
+      // Invite contacts with cockpit access
+      if (formData.contacts && formData.contacts.length > 0) {
+        const contactsToInvite = formData.contacts.filter(
+          (contact: any) => contact.has_cockpit_access,
+        );
+
+        if (contactsToInvite.length > 0) {
+          try {
+            // Get company ID from subsidiary
+            const { data: companyData, error: companyError } = await supabase
+              .from("subsidiaries")
+              .select("company_id")
+              .eq("id", subsidiary.id)
+              .single();
+
+            if (companyError) {
+              console.error("Error getting company_id:", companyError);
+            } else {
+              // Send invitations for each contact with cockpit access
+              for (const contact of contactsToInvite) {
+                const firstName = contact.first_name || contact.firstname;
+                const lastName = contact.last_name || contact.lastname;
+
+                const response = await fetch("/api/invite", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    email: contact.email,
+                    firstname: firstName,
+                    lastname: lastName,
+                    role: "User",
+                    company: companyData.company_id,
+                  }),
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                  console.error(
+                    `Error inviting ${contact.email}:`,
+                    result.error,
+                  );
+                } else {
+                  console.log(`Invited ${contact.email} successfully`);
+                }
+              }
+            }
+          } catch (inviteError) {
+            console.error("Error inviting contacts:", inviteError);
+          }
         }
       }
 
