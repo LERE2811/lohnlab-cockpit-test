@@ -20,6 +20,7 @@ interface CompanyContextType {
   availableSubsidiaries: Subsidiary[];
   setSelectedCompany: (company: Company | null) => Promise<void>;
   setSelectedSubsidiary: (subsidiary: Subsidiary | null) => void;
+  refreshSubsidiary: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -30,6 +31,7 @@ export const CompanyContext = createContext<CompanyContextType>({
   availableSubsidiaries: [],
   setSelectedCompany: async () => {},
   setSelectedSubsidiary: () => {},
+  refreshSubsidiary: async () => {},
   isLoading: true,
 });
 
@@ -289,6 +291,33 @@ export const CompanyProvider = ({
     setSubsidiary(newSubsidiary);
   };
 
+  const refreshSubsidiary = async () => {
+    if (!company || !subsidiary) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("subsidiaries")
+        .select("*")
+        .eq("id", subsidiary.id)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setSubsidiary(data as Subsidiary);
+      }
+    } catch (error) {
+      console.error("Error refreshing subsidiary:", error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Aktualisieren der Tochtergesellschaft.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <CompanyContext.Provider
       value={{
@@ -298,6 +327,7 @@ export const CompanyProvider = ({
         availableSubsidiaries,
         setSelectedCompany,
         setSelectedSubsidiary,
+        refreshSubsidiary,
         isLoading,
       }}
     >

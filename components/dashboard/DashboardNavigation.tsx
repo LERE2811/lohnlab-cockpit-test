@@ -43,6 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { Roles } from "@/shared/model";
 import { useState } from "react";
 import { supabase } from "@/utils/supabase/client";
+import { GivveOnboardingBanner } from "@/components/GivveOnboardingBanner";
 
 interface SidebarItem {
   title: string;
@@ -422,6 +423,7 @@ export function DashboardNavigation({
       </div>
       <SidebarInset className="flex flex-col">
         <OnboardingBanner />
+        <GivveOnboardingBanner />
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </SidebarInset>
