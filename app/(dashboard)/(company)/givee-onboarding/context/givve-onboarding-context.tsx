@@ -49,6 +49,7 @@ export interface GivveOnboardingData {
   initialInvoiceReceived?: boolean;
   initialInvoicePaid?: boolean;
   completed?: boolean;
+  documents?: Record<string, any>; // Store documents data based on legal form
 }
 
 // Define the context type
@@ -128,6 +129,7 @@ export const GivveOnboardingProvider = ({
         initialInvoiceReceived: false,
         initialInvoicePaid: false,
         completed: false,
+        documents: {},
       };
 
       setFormData(initialData);
@@ -160,11 +162,30 @@ export const GivveOnboardingProvider = ({
   // Move to the next step
   const nextStep = () => {
     setCurrentStep((prev) => {
+      // Get the next step number
       const next = prev + 1;
+
       // Ensure we don't exceed the maximum step
-      return next <= GivveOnboardingStep.COMPLETED
-        ? next
-        : GivveOnboardingStep.COMPLETED;
+      if (next > GivveOnboardingStep.COMPLETED) {
+        return GivveOnboardingStep.COMPLETED;
+      }
+
+      // Check if we should be allowed to proceed based on form data
+      if (
+        next === GivveOnboardingStep.READY_FOR_SIGNATURE &&
+        !formData.documentsSubmitted
+      ) {
+        toast({
+          title: "Fehler",
+          description:
+            "Bitte laden Sie die Formulare herunter und füllen Sie sie aus.",
+          variant: "destructive",
+        });
+        return prev;
+      }
+
+      // Allow progression to all steps
+      return next;
     });
   };
 
@@ -201,6 +222,9 @@ export const GivveOnboardingProvider = ({
       // If a step was provided, update it
       if (step) {
         setCurrentStep(step);
+      } else {
+        // If no specific step is provided, move to the next step
+        nextStep();
       }
 
       toast({

@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useGivveOnboarding } from "../context/givve-onboarding-context";
 import { ArrowLeft, ArrowRight, Save, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 interface StepLayoutProps {
   title: string;
   description: string;
   children: React.ReactNode;
-  onSave?: () => void;
+  onSave?: () => Promise<void>;
   disableNext?: boolean;
   disablePrev?: boolean;
   isProcessing?: boolean;
@@ -27,8 +28,27 @@ export const StepLayout = ({
   customActions,
 }: StepLayoutProps) => {
   const { prevStep, nextStep, isSaving } = useGivveOnboarding();
+  const [localProcessing, setLocalProcessing] = useState(false);
 
-  const processing = isProcessing || isSaving;
+  const processing = isProcessing || isSaving || localProcessing;
+
+  // Handle save and next
+  const handleSaveAndNext = async () => {
+    if (onSave) {
+      setLocalProcessing(true);
+      try {
+        await onSave();
+        // No need to call nextStep() here as saveProgress in the context should do it
+      } catch (error) {
+        console.error("Error saving step:", error);
+      } finally {
+        setLocalProcessing(false);
+      }
+    } else {
+      // If no onSave method is provided, just move to the next step
+      nextStep();
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -54,38 +74,33 @@ export const StepLayout = ({
           <div className="flex items-center space-x-2">
             {customActions}
 
-            {onSave && (
-              <Button
-                variant="default"
-                size="sm"
-                disabled={processing}
-                onClick={onSave}
-              >
-                {processing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Speichern...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Speichern & Weiter
-                  </>
-                )}
-              </Button>
-            )}
-
-            {!onSave && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={nextStep}
-                disabled={disableNext || processing}
-              >
-                Weiter
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="default"
+              size="sm"
+              disabled={disableNext || processing}
+              onClick={handleSaveAndNext}
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {onSave ? "Speichern..." : "Weiter..."}
+                </>
+              ) : (
+                <>
+                  {onSave ? (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Speichern & Weiter
+                    </>
+                  ) : (
+                    <>
+                      Weiter
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </Card>

@@ -2,7 +2,7 @@
 
 import { StepLayout } from "../components/StepLayout";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, FileWarning } from "lucide-react";
+import { Shield, FileWarning, Info } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -11,12 +11,193 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useGivveOnboarding } from "../context/givve-onboarding-context";
+import { useCompany } from "@/context/company-context";
+import { useState, useEffect } from "react";
+import {
+  GmbHForm,
+  AGForm,
+  OtherForm,
+  GmbHCoKGForm,
+  KgOhgForm,
+  KdoerForm,
+  GmbHUGForm,
+  PartGForm,
+  VereinGenossForm,
+  EkForm,
+  EinzelunternehmenForm,
+  FreiberuflerForm,
+  JuristischePersonForm,
+  GbrForm,
+} from "./legal-forms";
+
+// Define the available legal forms
+const LegalForm = {
+  GMBH: "GmbH",
+  UG: "UG",
+  AG: "AG",
+  EK: "e.K.",
+  EINZELUNTERNEHMEN: "Einzelunternehmen",
+  FREIBERUFLER: "Freiberufler",
+  JURISTISCHE_PERSON: "juristische Person",
+  OHG: "OHG",
+  KG: "KG",
+  GMBH_CO_KG: "GmbH & Co. KG",
+  PARTG: "PartG",
+  PARTG_MBB: "PartG mbB",
+  VEREIN: "e.V.",
+  GENOSSENSCHAFT: "eG",
+  KDOER: "KdöR",
+  GBR: "GbR",
+  SONSTIGE: "Sonstige",
+} as const;
 
 export const RequiredDocumentsStep = () => {
-  const { saveProgress } = useGivveOnboarding();
+  const { saveProgress, formData, updateFormData } = useGivveOnboarding();
+  const { subsidiary } = useCompany();
+  const [documentFormData, setDocumentFormData] = useState<any>({});
+
+  // Get the legal form from the subsidiary
+  const legalForm = subsidiary?.legal_form || "";
+
+  useEffect(() => {
+    // Initialize form data from the context
+    setDocumentFormData(formData.documents || {});
+  }, [formData]);
+
+  const handleFieldsChange = (data: any) => {
+    setDocumentFormData(data);
+  };
 
   const handleContinue = async () => {
-    await saveProgress({ requiresAdditionalDocuments: true });
+    // Save all the document form data to the onboarding context
+    await saveProgress({
+      requiresAdditionalDocuments: true,
+      documents: documentFormData,
+    });
+  };
+
+  // Get the appropriate legal form component
+  const getLegalFormComponent = () => {
+    // Normalize by removing whitespace and making uppercase for safer comparison
+    const normalizedLegalForm = legalForm.replace(/\s+/g, "").toUpperCase();
+
+    if (
+      normalizedLegalForm.includes("GMBH") &&
+      normalizedLegalForm.includes("KG")
+    ) {
+      return (
+        <GmbHCoKGForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm === "GMBH" || normalizedLegalForm === "UG") {
+      return (
+        <GmbHUGForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+          legalForm={legalForm}
+        />
+      );
+    } else if (
+      normalizedLegalForm.includes("GMBH") &&
+      !normalizedLegalForm.includes("KG")
+    ) {
+      return (
+        <GmbHForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (
+      normalizedLegalForm.includes("AG") &&
+      !normalizedLegalForm.includes("GMBH")
+    ) {
+      return (
+        <AGForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm === "KG" || normalizedLegalForm === "OHG") {
+      return (
+        <KgOhgForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+          legalForm={legalForm}
+        />
+      );
+    } else if (
+      normalizedLegalForm === "KDÖR" ||
+      normalizedLegalForm === "KDOER"
+    ) {
+      return (
+        <KdoerForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm.includes("PARTG")) {
+      return (
+        <PartGForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+          legalForm={legalForm}
+        />
+      );
+    } else if (normalizedLegalForm === "E.V." || normalizedLegalForm === "EG") {
+      return (
+        <VereinGenossForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+          legalForm={legalForm}
+        />
+      );
+    } else if (normalizedLegalForm === "E.K.") {
+      return (
+        <EkForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm === "EINZELUNTERNEHMEN") {
+      return (
+        <EinzelunternehmenForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm === "FREIBERUFLER") {
+      return (
+        <FreiberuflerForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm === "JURISTISCHEPERSON") {
+      return (
+        <JuristischePersonForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else if (normalizedLegalForm === "GBR") {
+      return (
+        <GbrForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+        />
+      );
+    } else {
+      // For all other legal forms, use the OtherForm component
+      return (
+        <OtherForm
+          onFieldsChange={handleFieldsChange}
+          formData={documentFormData}
+          legalForm={legalForm}
+        />
+      );
+    }
   };
 
   return (
@@ -26,17 +207,7 @@ export const RequiredDocumentsStep = () => {
       onSave={handleContinue}
     >
       <div className="space-y-6">
-        <Alert
-          variant="default"
-          className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
-        >
-          <FileWarning className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <AlertDescription className="text-amber-800 dark:text-amber-200">
-            Dies ist ein Platzhalter. Die vollständige Funktionalität folgt in
-            weiteren Updates.
-          </AlertDescription>
-        </Alert>
-
+        {/* GwG Information Card - Always shown at the top */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
@@ -53,19 +224,28 @@ export const RequiredDocumentsStep = () => {
                 vorgeschrieben und dienen der Prävention von Geldwäsche und
                 Terrorismusfinanzierung.
               </p>
-              <p className="mb-4">
-                Nach Abschluss dieses Schritts werden wir Sie kontaktieren, um
-                die erforderlichen Unterlagen anzufordern. Bitte halten Sie
-                folgende Dokumente bereit:
-              </p>
-              <ul className="list-inside list-disc space-y-2">
-                <li>Handelsregisterauszug (nicht älter als 3 Monate)</li>
-                <li>Identitätsnachweise der wirtschaftlich Berechtigten</li>
-                <li>Transparenzregisterauszug (falls zutreffend)</li>
-              </ul>
+              <div className="mt-4 rounded-lg border bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
+                <div className="flex items-start gap-3">
+                  <Info className="mt-0.5 h-5 w-5 text-blue-500" />
+                  <div>
+                    <h4 className="font-medium text-blue-800 dark:text-blue-300">
+                      Wichtiger Hinweis
+                    </h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-400">
+                      Wir sind gesetzlich verpflichtet, die Identität und
+                      wirtschaftliche Berechtigung im Rahmen der givve® Card
+                      Bestellung zu prüfen. Diese Maßnahmen dienen Ihrer
+                      Sicherheit und dem Schutz vor Missbrauch.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardDescription>
           </CardContent>
         </Card>
+
+        {/* Legal Form Specific Documents Section */}
+        {getLegalFormComponent()}
       </div>
     </StepLayout>
   );

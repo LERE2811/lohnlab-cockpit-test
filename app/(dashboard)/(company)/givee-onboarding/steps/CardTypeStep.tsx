@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { CreditCardPreview } from "@/components/ui/CreditCardPreview";
 
 const formSchema = z.object({
   cardType: z.enum([
@@ -48,6 +49,8 @@ export const CardTypeStep = () => {
   const { formData, updateFormData, saveProgress } = useGivveOnboarding();
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [designFileName, setDesignFileName] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [designFile, setDesignFile] = useState<File | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -83,6 +86,23 @@ export const CardTypeStep = () => {
     // Update form data in context
     updateFormData(values);
 
+    // Validate if logo/design files are required based on card type
+    if (values.cardType === GivveCardType.LOGO && !values.logoFile) {
+      form.setError("logoFile", {
+        type: "manual",
+        message: "Bitte laden Sie Ihr Firmenlogo hoch.",
+      });
+      return;
+    }
+
+    if (values.cardType === GivveCardType.DESIGN && !values.designFile) {
+      form.setError("designFile", {
+        type: "manual",
+        message: "Bitte laden Sie Ihr Kartendesign hoch.",
+      });
+      return;
+    }
+
     // Save to database (simulated) and proceed to next step
     try {
       await saveProgress(values);
@@ -98,6 +118,7 @@ export const CardTypeStep = () => {
       // For now, just store the file name
       // In a real implementation, we would upload to Supabase storage
       setLogoFileName(file.name);
+      setLogoFile(file);
       form.setValue("logoFile", file.name);
     }
   };
@@ -108,6 +129,7 @@ export const CardTypeStep = () => {
       // For now, just store the file name
       // In a real implementation, we would upload to Supabase storage
       setDesignFileName(file.name);
+      setDesignFile(file);
       form.setValue("designFile", file.name);
     }
   };
@@ -136,6 +158,9 @@ export const CardTypeStep = () => {
       description: "Die givve® Card mit vollständig individuellem Design",
     },
   ];
+
+  const cardType = form.watch("cardType");
+  const departmentName = form.watch("departmentName");
 
   return (
     <StepLayout
@@ -199,6 +224,32 @@ export const CardTypeStep = () => {
               </FormItem>
             )}
           />
+
+          {/* Card Preview */}
+          <div className="my-8">
+            <h3 className="mb-3 font-medium">Kartenvorschau</h3>
+            <div className="flex flex-col items-center gap-6 md:flex-row">
+              <CreditCardPreview
+                type={cardType as "standard" | "logo" | "design"}
+                holderName="Max Mustermann"
+                secondLine={departmentName || "Firmenname/Abteilung"}
+                uploadedLogo={logoFile}
+                className="w-full max-w-md"
+              />
+              <div className="text-sm text-muted-foreground">
+                <p className="mb-2">So wird Ihre Karte aussehen:</p>
+                <ul className="list-inside list-disc space-y-1">
+                  <li>Format: 85,6 × 54,0 mm (ISO/IEC 7810 ID-1)</li>
+                  <li>Mastercard® Zahlungsfunktion</li>
+                  <li>NFC-fähig für kontaktlose Zahlungen</li>
+                  <li>Haltbarkeit: ca. 3-5 Jahre</li>
+                </ul>
+                <p className="mt-2 text-xs">
+                  Die finale Karte kann von der Vorschau leicht abweichen.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div className="rounded-lg border bg-muted/30 p-4">
             <div className="flex items-start space-x-3">
