@@ -18,11 +18,27 @@ export async function POST(request: NextRequest) {
     // Parse request body
     console.log("Parsing request body...");
     const body = await request.json();
-    const { formType, templatePath, formData, subsidiaryId } = body;
-    console.log("Request params:", { formType, templatePath, subsidiaryId });
+    const {
+      formType,
+      templatePath,
+      formData,
+      subsidiaryId,
+      skipFilling = false,
+    } = body;
+    console.log("Request params:", {
+      formType,
+      templatePath,
+      subsidiaryId,
+      skipFilling,
+    });
     console.log("Form data fields count:", Object.keys(formData || {}).length);
 
-    if (!formType || !templatePath || !formData || !subsidiaryId) {
+    if (
+      !formType ||
+      !templatePath ||
+      (!formData && !skipFilling) ||
+      !subsidiaryId
+    ) {
       console.error("Missing required parameters:", {
         formType,
         templatePath,
@@ -75,15 +91,21 @@ export async function POST(request: NextRequest) {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     console.log("PDF document loaded successfully");
 
-    // Fill the PDF form
-    console.log("Filling PDF form with data...");
-    await fillPdfForm(pdfDoc, formData);
-    console.log("PDF form filled successfully");
+    // Fill the PDF form (unless skipping)
+    let filledPdfBytes;
+    if (skipFilling) {
+      console.log("Skipping form filling as requested");
+      filledPdfBytes = await pdfDoc.save();
+    } else {
+      console.log("Filling PDF form with data...");
+      await fillPdfForm(pdfDoc, formData);
+      console.log("PDF form filled successfully");
 
-    // Save the filled PDF
-    console.log("Saving filled PDF...");
-    const filledPdfBytes = await pdfDoc.save();
-    console.log("Filled PDF size:", filledPdfBytes.byteLength);
+      // Save the filled PDF
+      console.log("Saving filled PDF...");
+      filledPdfBytes = await pdfDoc.save();
+    }
+    console.log("PDF size:", filledPdfBytes.byteLength);
 
     // Upload the filled PDF to Supabase storage in the correct subsidiary folder
     const timestamp = Date.now();
@@ -150,6 +172,7 @@ export async function POST(request: NextRequest) {
       filename,
       filePath,
       bucket: "givve_documents",
+      filling: skipFilling ? "skipped" : "applied",
     });
   } catch (error) {
     console.error("Unexpected error in PDF fill API:", error);
