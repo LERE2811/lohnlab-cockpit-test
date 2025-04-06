@@ -6,6 +6,9 @@ import {
   GivveDocumentCategory,
 } from "@/app/constants/givveDocumentTypes";
 
+// Force Node.js runtime for pdf-lib compatibility
+export const runtime = "nodejs";
+
 export async function POST(request: NextRequest) {
   try {
     // Create Supabase client
@@ -15,6 +18,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { formType, templatePath, formData, subsidiaryId } = body;
 
+    console.log("PDF fill request received:", {
+      formType,
+      templatePath,
+      subsidiaryId,
+    });
+
     if (!formType || !templatePath || !formData || !subsidiaryId) {
       return NextResponse.json(
         { error: "Missing required parameters" },
@@ -22,29 +31,97 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a signed URL for the template PDF
+    // Generate a signed URL for the template PDF with longer expiry (5 minutes)
     const { data: fileData, error: fileError } = await supabaseClient.storage
       .from("givve_documents")
-      .createSignedUrl(templatePath, 60);
+      .createSignedUrl(templatePath, 300); // 5 minutes expiry for cold starts
 
     if (fileError || !fileData?.signedUrl) {
       console.error("Error getting template file:", fileError);
       return NextResponse.json(
-        { error: "Failed to access template file" },
+        { error: "Failed to access template file", details: fileError },
         { status: 500 },
       );
     }
 
-    // Fetch the PDF template
-    const response = await fetch(fileData.signedUrl);
-    const pdfBytes = await response.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(pdfBytes);
+    console.log("Template signed URL generated successfully");
+
+    // Fetch the PDF template with error handling
+    let pdfBytes;
+    try {
+      const response = await fetch(fileData.signedUrl);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch template: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      pdfBytes = await response.arrayBuffer();
+      console.log(
+        `Template fetched successfully, size: ${pdfBytes.byteLength} bytes`,
+      );
+
+      if (pdfBytes.byteLength === 0) {
+        throw new Error("Received empty PDF template");
+      }
+    } catch (fetchError: any) {
+      console.error("Error fetching PDF template:", fetchError);
+      return NextResponse.json(
+        { error: "Failed to fetch PDF template", details: fetchError.message },
+        { status: 500 },
+      );
+    }
+
+    // Load and fill the PDF
+    let pdfDoc;
+    try {
+      pdfDoc = await PDFDocument.load(pdfBytes);
+      console.log(
+        "PDF loaded successfully, page count:",
+        pdfDoc.getPageCount(),
+      );
+    } catch (loadError: any) {
+      console.error("Error loading PDF document:", loadError);
+      return NextResponse.json(
+        { error: "Failed to load PDF document", details: loadError.message },
+        { status: 500 },
+      );
+    }
 
     // Fill the PDF form
-    await fillPdfForm(pdfDoc, formData);
+    try {
+      await fillPdfForm(pdfDoc, formData);
+      console.log("PDF form filled successfully");
+    } catch (fillError: any) {
+      console.error("Error filling PDF form:", fillError);
+      return NextResponse.json(
+        { error: "Failed to fill PDF form", details: fillError.message },
+        { status: 500 },
+      );
+    }
 
     // Save the filled PDF
-    const filledPdfBytes = await pdfDoc.save();
+    let filledPdfBytes;
+    try {
+      filledPdfBytes = await pdfDoc.save();
+      console.log(
+        `Filled PDF generated successfully, size: ${filledPdfBytes.byteLength} bytes`,
+      );
+
+      // Check if file size exceeds Vercel's payload limits (4MB)
+      if (filledPdfBytes.byteLength > 4 * 1024 * 1024) {
+        console.warn(
+          "Warning: Generated PDF exceeds 4MB, may cause issues with Vercel",
+        );
+      }
+    } catch (saveError: any) {
+      console.error("Error saving filled PDF:", saveError);
+      return NextResponse.json(
+        { error: "Failed to save filled PDF", details: saveError.message },
+        { status: 500 },
+      );
+    }
 
     // Upload the filled PDF to Supabase storage in the correct subsidiary folder
     const timestamp = Date.now();
@@ -52,9 +129,6 @@ export async function POST(request: NextRequest) {
       formType === "bestellformular"
         ? `Bestellformular_${timestamp}.pdf`
         : `Dokumentationsbogen_${timestamp}.pdf`;
-
-    // Define path according to file organization strategy from file-organization.md:
-    // givve_documents/{subsidiary_id}/legal_form_documents/{document_type}/{timestamp}_{filename}
 
     // Create a type-specific subdirectory for better organization
     const documentType =
@@ -69,6 +143,8 @@ export async function POST(request: NextRequest) {
     // Construct the complete file path according to the documented structure
     const filePath = `${subsidiaryId}/${GivveDocumentCategory.PREFILLED_FORMS}/${documentType}/${fileWithTimestamp}`;
 
+    console.log("Uploading filled PDF to:", filePath);
+
     // Upload the filled PDF to the givve_documents bucket
     const { data: uploadData, error: uploadError } =
       await supabaseClient.storage
@@ -81,36 +157,46 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       console.error("Error uploading filled PDF:", uploadError);
       return NextResponse.json(
-        { error: "Failed to save filled PDF" },
+        { error: "Failed to save filled PDF", details: uploadError },
         { status: 500 },
       );
     }
 
-    // Create a signed URL for the filled PDF from the givve_documents bucket
+    console.log("Upload successful, generating download URL");
+
+    // Create a signed URL for the filled PDF from the givve_documents bucket with longer expiry
     const { data: signedUrlData, error: signedUrlError } =
       await supabaseClient.storage
         .from("givve_documents")
-        .createSignedUrl(filePath, 300); // 5 minutes expiry
+        .createSignedUrl(filePath, 600); // 10 minutes expiry
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
       console.error("Error creating signed URL:", signedUrlError);
       return NextResponse.json(
-        { error: "Failed to create download link" },
+        { error: "Failed to create download link", details: signedUrlError },
         { status: 500 },
       );
     }
 
+    console.log("PDF process completed successfully");
+
+    // Set content-disposition header in the response
     return NextResponse.json({
       success: true,
       downloadUrl: signedUrlData.signedUrl,
       filename,
       filePath,
       bucket: "givve_documents",
+      fileSize: filledPdfBytes.byteLength,
     });
-  } catch (error) {
-    console.error("Error in PDF fill API:", error);
+  } catch (error: any) {
+    console.error("Unexpected error in PDF fill API:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error: "Internal server error",
+        details: error.message,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
       { status: 500 },
     );
   }
