@@ -298,9 +298,22 @@ async function fillPdfForm(
           fieldName.toLowerCase().includes("check") ||
           fieldName === "givve StandardCard" ||
           fieldName === "givve LogoCard" ||
-          fieldName === "givve DesignCard"
+          fieldName === "givve DesignCard" ||
+          // Common checkbox patterns in Dokumentationsbogen
+          fieldName.toLowerCase().includes("ja") ||
+          fieldName.toLowerCase().includes("nein") ||
+          fieldName.toLowerCase().includes("yes") ||
+          fieldName.toLowerCase().includes("no") ||
+          fieldName.toLowerCase().includes("option")
         ) {
           fieldType = "checkbox";
+        } else if (
+          // Handle dropdown fields in Dokumentationsbogen
+          fieldName.toLowerCase().includes("dropdown") ||
+          fieldName.toLowerCase().includes("auswahl") ||
+          fieldName.toLowerCase().includes("liste")
+        ) {
+          fieldType = "dropdown";
         } else {
           // Default to text for most fields on Vercel
           fieldType = "text";
@@ -417,6 +430,78 @@ async function fillPdfForm(
 
     if (filledFields === 0 && isVercelEnvironment) {
       console.log("No fields filled, attempting emergency direct approach");
+
+      // Try to identify potential radio groups first (common in Dokumentationsbogen)
+      // Get all field names
+      const fieldNames = fields.map((f) => f.getName());
+
+      // Look for patterns in field names that might indicate radio button groups
+      const radioGroupCandidates = new Set<string>();
+      fieldNames.forEach((name) => {
+        // Look for common radio group patterns like multiple fields with similar names
+        // e.g., option1, option2, option3 or field_1, field_2, field_3
+        const match = name.match(/(.*?)[\d_]+$/);
+        if (match) {
+          radioGroupCandidates.add(match[1]);
+        }
+      });
+
+      console.log(
+        `Found ${radioGroupCandidates.size} potential radio group bases`,
+      );
+
+      // Try to handle radio groups specifically
+      for (const [key, value] of Object.entries(fieldValues)) {
+        for (const groupBase of radioGroupCandidates) {
+          if (key.startsWith(groupBase) || key.includes(groupBase)) {
+            console.log(
+              `Trying to handle ${key} as part of radio group ${groupBase}`,
+            );
+
+            // For each matching group, find all related fields
+            const relatedFields = fieldNames.filter(
+              (name) => name.startsWith(groupBase) || name.includes(groupBase),
+            );
+
+            console.log(
+              `Found ${relatedFields.length} fields in potential group ${groupBase}`,
+            );
+
+            try {
+              // Try to select the appropriate option
+              for (const fieldName of relatedFields) {
+                try {
+                  const field = form.getField(fieldName);
+                  // If this specific field matches our desired value
+                  if (
+                    fieldName.toLowerCase().includes(value.toLowerCase()) ||
+                    (typeof value === "string" &&
+                      value.toLowerCase() === "yes" &&
+                      (fieldName.toLowerCase().includes("ja") ||
+                        fieldName.toLowerCase().includes("yes")))
+                  ) {
+                    try {
+                      (field as any).check();
+                      console.log(
+                        `✅ Emergency radio approach: Checked ${fieldName} for value ${value}`,
+                      );
+                      filledFields++;
+                      break; // Found our match
+                    } catch (e) {
+                      // Not a checkbox, ignore
+                    }
+                  }
+                } catch (e) {
+                  // Ignore individual field errors
+                }
+              }
+            } catch (e) {
+              // Ignore group errors
+            }
+          }
+        }
+      }
+
       // Last resort: Try a more direct approach for Vercel
       for (const [key, value] of Object.entries(fieldValues)) {
         try {
@@ -477,6 +562,96 @@ async function fallbackFillPdfForm(
     let filledCount = 0;
     let errorCount = 0;
 
+    // Get field names for analysis
+    const fieldNames = fields.map((f) => f.getName());
+    console.log("All field names:", fieldNames);
+
+    // Analyze fields to determine what type of form we're dealing with
+    const isDokumentationsbogen = fieldNames.some(
+      (name) =>
+        name.toLowerCase().includes("dokument") ||
+        name.toLowerCase().includes("geldwäsche") ||
+        name.toLowerCase().includes("wirtschaftlich") ||
+        name.toLowerCase().includes("identifizierung"),
+    );
+
+    if (isDokumentationsbogen) {
+      console.log(
+        "Detected Dokumentationsbogen form, using specialized approach",
+      );
+
+      // Dokumentationsbogen often has lots of checkboxes for "ja/nein" options
+      const checkboxCandidates = fieldNames.filter(
+        (name) =>
+          name.toLowerCase().includes("ja") ||
+          name.toLowerCase().includes("nein") ||
+          name.toLowerCase().includes("yes") ||
+          name.toLowerCase().includes("no"),
+      );
+
+      console.log(
+        `Found ${checkboxCandidates.length} potential checkbox fields`,
+      );
+
+      // Handle yes/no fields specifically
+      for (const [key, value] of Object.entries(fieldValues)) {
+        // Skip empty values
+        if (!value) continue;
+
+        const isYesValue =
+          value.toLowerCase() === "yes" ||
+          value.toLowerCase() === "ja" ||
+          value.toLowerCase() === "true" ||
+          value === "1";
+
+        // Look for matching checkboxes
+        const matchingCheckboxes = checkboxCandidates.filter((name) => {
+          // If value is "yes", look for "ja" or "yes" fields that match the key
+          if (isYesValue) {
+            return (
+              (name.toLowerCase().includes("ja") ||
+                name.toLowerCase().includes("yes")) &&
+              name.toLowerCase().includes(key.toLowerCase())
+            );
+          }
+          // If value is "no", look for "nein" or "no" fields that match the key
+          else {
+            return (
+              (name.toLowerCase().includes("nein") ||
+                name.toLowerCase().includes("no")) &&
+              name.toLowerCase().includes(key.toLowerCase())
+            );
+          }
+        });
+
+        if (matchingCheckboxes.length > 0) {
+          console.log(
+            `Found ${matchingCheckboxes.length} matching checkboxes for field ${key}`,
+          );
+
+          // Try to check the appropriate boxes
+          for (const checkboxName of matchingCheckboxes) {
+            try {
+              const field = form.getField(checkboxName);
+              try {
+                (field as any).check();
+                console.log(
+                  `✅ Fallback Dokumentationsbogen: Checked ${checkboxName} for field ${key}=${value}`,
+                );
+                filledCount++;
+              } catch (e) {
+                // Not a checkbox or failed
+                console.log(`Failed to check field ${checkboxName}:`, e);
+              }
+            } catch (e) {
+              // Ignore field errors
+            }
+          }
+        }
+      }
+    }
+
+    // Continue with standard fallback methods
     // Method 1: Direct access by field name
     console.log("Fallback Method 1: Direct access by field name");
     for (const [key, value] of Object.entries(fieldValues)) {
@@ -557,7 +732,7 @@ async function fallbackFillPdfForm(
 
     // Method 2: Try to find fields by partial name match
     console.log("Fallback Method 2: Partial name matching");
-    const fieldNames = fields.map((f) => f.getName());
+    // Use existing fieldNames array - no need to redefine
 
     for (const [key, value] of Object.entries(fieldValues)) {
       // Skip if already filled successfully
