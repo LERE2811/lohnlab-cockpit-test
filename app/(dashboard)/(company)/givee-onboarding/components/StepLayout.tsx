@@ -3,8 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useGivveOnboarding } from "../context/givve-onboarding-context";
-import { ArrowLeft, ArrowRight, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, Loader2, Info } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface StepLayoutProps {
   title: string;
@@ -15,6 +22,9 @@ interface StepLayoutProps {
   disablePrev?: boolean;
   isProcessing?: boolean;
   customActions?: React.ReactNode;
+  saveButtonText?: string;
+  saveButtonIcon?: React.ReactNode;
+  status?: string;
 }
 
 export const StepLayout = ({
@@ -26,6 +36,9 @@ export const StepLayout = ({
   disablePrev = false,
   isProcessing = false,
   customActions,
+  saveButtonText,
+  saveButtonIcon,
+  status,
 }: StepLayoutProps) => {
   const { prevStep, nextStep, isSaving } = useGivveOnboarding();
   const [localProcessing, setLocalProcessing] = useState(false);
@@ -53,9 +66,29 @@ export const StepLayout = ({
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
       <Card className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="border-b border-border bg-card px-6 py-4">
-          <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight">{title}</h2>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+          {status && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="ml-2 flex items-center gap-1"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                    <span>{status}</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Status wird vom Administrator aktualisiert</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
 
         <div className="bg-white px-6 py-6 dark:bg-background">{children}</div>
@@ -89,8 +122,8 @@ export const StepLayout = ({
                 <>
                   {onSave ? (
                     <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Speichern & Weiter
+                      {saveButtonIcon || <Save className="mr-2 h-4 w-4" />}
+                      {saveButtonText || "Speichern & Weiter"}
                     </>
                   ) : (
                     <>

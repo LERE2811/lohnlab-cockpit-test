@@ -6,17 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface EkFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
-export const EkForm = ({ onFieldsChange, formData }: EkFormProps) => {
+export const EkForm = ({
+  onFieldsChange,
+  formData,
+  legalForm,
+}: EkFormProps) => {
   const [handelsregisterFile, setHandelsregisterFile] = useState<File | null>(
     null,
   );
+  const [addressProofFile, setAddressProofFile] = useState<File | null>(null);
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     handelsregisterNumber: formData.handelsregisterNumber || "",
     firstName: formData.firstName || "",
@@ -67,16 +74,19 @@ export const EkForm = ({ onFieldsChange, formData }: EkFormProps) => {
 
   // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
-    const updatedState = {
-      ...documentState,
-      hasPep: newState.hasPep,
-      pepDetails: newState.pepDetails,
-    };
-
-    setDocumentState(updatedState);
+    setDocumentState(newState);
     onFieldsChange({
       ...formData,
-      ...updatedState,
+      hasPep: newState.hasPep,
+      pepDetails: newState.pepDetails,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -101,6 +111,13 @@ export const EkForm = ({ onFieldsChange, formData }: EkFormProps) => {
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-4">
           <div>

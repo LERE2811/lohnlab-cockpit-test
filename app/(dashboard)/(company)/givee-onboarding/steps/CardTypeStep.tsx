@@ -20,7 +20,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
-import { CreditCard, Upload, Info } from "lucide-react";
+import { CreditCard, Upload, Info, Loader2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -31,6 +31,9 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CreditCardPreview } from "@/components/ui/CreditCardPreview";
+import { supabase } from "@/utils/supabase/client";
+import { useCompany } from "@/context/company-context";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   cardType: z.enum([
@@ -47,10 +50,13 @@ type FormValues = z.infer<typeof formSchema>;
 
 export const CardTypeStep = () => {
   const { formData, updateFormData, saveProgress } = useGivveOnboarding();
+  const { subsidiary } = useCompany();
+  const { toast } = useToast();
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [designFileName, setDesignFileName] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [designFile, setDesignFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -82,12 +88,47 @@ export const CardTypeStep = () => {
     }
   }, [formData, form]);
 
-  const onSubmit = async (values: FormValues) => {
-    // Update form data in context
-    updateFormData(values);
+  const uploadFile = async (
+    file: File,
+    type: "logo" | "design",
+  ): Promise<string | null> => {
+    if (!file || !subsidiary) return null;
 
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}_${file.name}`;
+      const filePath = `${subsidiary.id}/card_design/${type}/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("givve_documents")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      return filePath;
+    } catch (error) {
+      console.error(`Error uploading ${type} file:`, error);
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Hochladen der ${type === "logo" ? "Logo" : "Design"}-Datei.`,
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
+  const onSubmit = async (values: FormValues) => {
     // Validate if logo/design files are required based on card type
-    if (values.cardType === GivveCardType.LOGO && !values.logoFile) {
+    if (
+      values.cardType === GivveCardType.LOGO &&
+      !values.logoFile &&
+      !logoFile
+    ) {
       form.setError("logoFile", {
         type: "manual",
         message: "Bitte laden Sie Ihr Firmenlogo hoch.",
@@ -95,13 +136,39 @@ export const CardTypeStep = () => {
       return;
     }
 
-    if (values.cardType === GivveCardType.DESIGN && !values.designFile) {
+    if (
+      values.cardType === GivveCardType.DESIGN &&
+      !values.designFile &&
+      !designFile
+    ) {
       form.setError("designFile", {
         type: "manual",
         message: "Bitte laden Sie Ihr Kartendesign hoch.",
       });
       return;
     }
+
+    // If we have new files to upload, do it now
+    if (logoFile && values.cardType === GivveCardType.LOGO) {
+      setIsUploading("logo");
+      const logoPath = await uploadFile(logoFile, "logo");
+      if (logoPath) {
+        values.logoFile = logoPath;
+      }
+      setIsUploading(null);
+    }
+
+    if (designFile && values.cardType === GivveCardType.DESIGN) {
+      setIsUploading("design");
+      const designPath = await uploadFile(designFile, "design");
+      if (designPath) {
+        values.designFile = designPath;
+      }
+      setIsUploading(null);
+    }
+
+    // Update form data and save to database
+    updateFormData(values);
 
     // Save to database (simulated) and proceed to next step
     try {
@@ -115,22 +182,16 @@ export const CardTypeStep = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // For now, just store the file name
-      // In a real implementation, we would upload to Supabase storage
       setLogoFileName(file.name);
       setLogoFile(file);
-      form.setValue("logoFile", file.name);
     }
   };
 
   const handleDesignUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // For now, just store the file name
-      // In a real implementation, we would upload to Supabase storage
       setDesignFileName(file.name);
       setDesignFile(file);
-      form.setValue("designFile", file.name);
     }
   };
 
@@ -164,9 +225,12 @@ export const CardTypeStep = () => {
 
   return (
     <StepLayout
-      title="Art der givve® Card auswählen"
-      description="Wählen Sie die passende givve® Card für Ihr Unternehmen"
+      title="Kartentyp auswählen"
+      description="Wählen Sie die Art der givve Card, die Sie für Ihre Mitarbeiter bestellen möchten."
       onSave={form.handleSubmit(onSubmit)}
+      disableNext={isUploading !== null}
+      isProcessing={isUploading !== null}
+      status={formData.status}
     >
       <Form {...form}>
         <div className="space-y-6">

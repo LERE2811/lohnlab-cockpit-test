@@ -2,14 +2,43 @@
 
 import { StepLayout } from "../components/StepLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, PartyPopper } from "lucide-react";
+import { CheckCircle, Clock, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGivveOnboarding } from "../context/givve-onboarding-context";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+interface StatusStep {
+  title: string;
+  completed: boolean;
+}
 
 export const CompletedStep = () => {
-  const { completeOnboarding } = useGivveOnboarding();
+  const { completeOnboarding, progress } = useGivveOnboarding();
   const router = useRouter();
+
+  const statusSteps: StatusStep[] = [
+    {
+      title: "Unterlagen bei givve® eingereicht",
+      completed: true, // Always true as we're on the completed step
+    },
+    {
+      title: "Link zur Videoidentifizierung erhalten",
+      completed: !!progress?.video_identification_link,
+    },
+    {
+      title: "Videoidentifizierung abgeschlossen",
+      completed: !!progress?.video_identification_completed,
+    },
+    {
+      title: "Initiale Rechnung erhalten",
+      completed: !!progress?.initial_invoice_received,
+    },
+    {
+      title: "Initiale Rechnung bezahlt",
+      completed: !!progress?.initial_invoice_paid,
+    },
+  ];
 
   const handleComplete = async () => {
     await completeOnboarding();
@@ -17,8 +46,8 @@ export const CompletedStep = () => {
 
   return (
     <StepLayout
-      title="givve Onboarding beendet"
-      description="Herzlichen Glückwunsch! Ihr givve® Card Onboarding ist abgeschlossen."
+      title="Onboarding Status"
+      description="Ihre Unterlagen wurden erfolgreich bei givve® eingereicht. Hier können Sie den aktuellen Status einsehen."
       disablePrev={true}
       disableNext={true}
       customActions={
@@ -38,24 +67,69 @@ export const CompletedStep = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
-              <CheckCircle className="mr-2 h-5 w-5 text-primary" />
-              Ihre givve® Cards sind bereit
+              <Clock className="mr-2 h-5 w-5 text-primary" />
+              Aktueller Bearbeitungsstatus
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 text-sm">
-              <p>
-                Herzlichen Glückwunsch! Ihre givve® Cards wurden erfolgreich
-                bestellt und an Ihre Adresse versendet. Sie sollten die Karten
-                in den nächsten Tagen erhalten.
-              </p>
-              <p>
-                Bei Fragen zur Nutzung oder Aufladen der Karten steht Ihnen
-                unser Support-Team jederzeit zur Verfügung.
-              </p>
-              <p>
-                Wir wünschen Ihnen viel Freude mit Ihren neuen givve® Cards!
-              </p>
+            <div className="space-y-6">
+              <div className="relative">
+                {statusSteps.map((step, index) => (
+                  <div key={index} className="flex items-start space-x-3">
+                    <div className="relative">
+                      <div
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full border-2",
+                          step.completed
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground bg-background",
+                        )}
+                      >
+                        {step.completed && <CheckCircle className="h-4 w-4" />}
+                      </div>
+                      {index < statusSteps.length - 1 && (
+                        <div
+                          className={cn(
+                            "absolute left-1/2 top-6 h-full w-0.5 -translate-x-1/2",
+                            step.completed
+                              ? "bg-primary"
+                              : "bg-muted-foreground/30",
+                          )}
+                        />
+                      )}
+                    </div>
+                    <div className="pb-8">
+                      <p
+                        className={cn(
+                          "font-medium",
+                          step.completed
+                            ? "text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {step.title}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-lg bg-muted p-4 text-sm">
+                <p>
+                  Die Bearbeitung Ihrer Unterlagen erfolgt schrittweise. Sie
+                  werden per E-Mail über jeden abgeschlossenen Schritt
+                  informiert.
+                </p>
+                <p className="mt-2">
+                  Nach erfolgreicher Videoidentifizierung und Bezahlung der
+                  initialen Rechnung werden Ihre givve® Cards produziert und an
+                  die angegebene Adresse versendet.
+                </p>
+                <p className="mt-2">
+                  Bei Fragen können Sie sich jederzeit an unseren Support
+                  wenden.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

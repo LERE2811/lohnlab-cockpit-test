@@ -13,13 +13,19 @@ import {
   Trash2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { IndustrySelect, PepCheckComponent } from "./components";
 
 interface GmbHFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
-export const GmbHForm = ({ onFieldsChange, formData }: GmbHFormProps) => {
+export const GmbHForm = ({
+  onFieldsChange,
+  formData,
+  legalForm,
+}: GmbHFormProps) => {
   const [handelregisterFile, setHandelregisterFile] = useState<File | null>(
     null,
   );
@@ -30,6 +36,11 @@ export const GmbHForm = ({ onFieldsChange, formData }: GmbHFormProps) => {
   );
   const [transparenzregisterFile, setTransparenzregisterFile] =
     useState<File | null>(null);
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
+  const [documentState, setDocumentState] = useState({
+    hasPep: formData.hasPep || false,
+    pepDetails: formData.pepDetails || "",
+  });
 
   const handleFileUpload = (type: string, file: File | null) => {
     if (!file) return;
@@ -101,6 +112,24 @@ export const GmbHForm = ({ onFieldsChange, formData }: GmbHFormProps) => {
     }
   };
 
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
+  // Update parent form data when PEP information changes
+  const handleDocumentStateChange = (newState: any) => {
+    setDocumentState(newState);
+    onFieldsChange({
+      ...formData,
+      hasPep: newState.hasPep,
+      pepDetails: newState.pepDetails,
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -123,6 +152,13 @@ export const GmbHForm = ({ onFieldsChange, formData }: GmbHFormProps) => {
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Handelsregisterauszug */}
@@ -347,6 +383,13 @@ export const GmbHForm = ({ onFieldsChange, formData }: GmbHFormProps) => {
             )}
           </div>
         </div>
+
+        {/* PEP Check Component */}
+        <PepCheckComponent
+          documentState={documentState}
+          setDocumentState={handleDocumentStateChange}
+          className="mt-6"
+        />
       </CardContent>
     </Card>
   );

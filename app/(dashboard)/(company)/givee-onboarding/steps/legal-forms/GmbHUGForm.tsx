@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent, TransparenzregisterInfoDialog } from "./components";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface GmbHUGFormProps {
   onFieldsChange: (fields: any) => void;
@@ -22,6 +22,10 @@ export const GmbHUGForm = ({
   );
   const [transparenzregisterFile, setTransparenzregisterFile] =
     useState<File | null>(null);
+  const [gewerbeanmeldungFile, setGewerbeanmeldungFile] = useState<File | null>(
+    null,
+  );
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
@@ -49,6 +53,13 @@ export const GmbHUGForm = ({
           transparenzregisterFile: file.name,
         });
         break;
+      case "gewerbeanmeldung":
+        setGewerbeanmeldungFile(file);
+        onFieldsChange({
+          ...formData,
+          gewerbeanmeldungFile: file.name,
+        });
+        break;
     }
   };
 
@@ -68,6 +79,13 @@ export const GmbHUGForm = ({
           transparenzregisterFile: null,
         });
         break;
+      case "gewerbeanmeldung":
+        setGewerbeanmeldungFile(null);
+        onFieldsChange({
+          ...formData,
+          gewerbeanmeldungFile: null,
+        });
+        break;
     }
   };
 
@@ -78,6 +96,14 @@ export const GmbHUGForm = ({
       ...formData,
       hasPep: newState.hasPep,
       pepDetails: newState.pepDetails,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -103,6 +129,13 @@ export const GmbHUGForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Handelsregisterauszug */}

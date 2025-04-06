@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface PartGFormProps {
   onFieldsChange: (fields: any) => void;
@@ -17,10 +17,11 @@ export const PartGForm = ({
   formData,
   legalForm,
 }: PartGFormProps) => {
-  const [partnerschaftsregisterFile, setPartnerschaftsregisterFile] =
-    useState<File | null>(null);
-  const [transparenzregisterFile, setTransparenzregisterFile] =
-    useState<File | null>(null);
+  const [dokumente, setDokumente] = useState<Record<string, File | null>>({
+    partnerschaftsregister: null,
+    partnerschaftsvertrag: null,
+  });
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
@@ -43,17 +44,23 @@ export const PartGForm = ({
     // For now, just update the local state
     switch (type) {
       case "partnerschaftsregister":
-        setPartnerschaftsregisterFile(file);
+        setDokumente({
+          ...dokumente,
+          partnerschaftsregister: file,
+        });
         onFieldsChange({
           ...formData,
           partnerschaftsregisterFile: file.name,
         });
         break;
       case "transparenzregister":
-        setTransparenzregisterFile(file);
+        setDokumente({
+          ...dokumente,
+          partnerschaftsvertrag: file,
+        });
         onFieldsChange({
           ...formData,
-          transparenzregisterFile: file.name,
+          partnerschaftsvertragFile: file.name,
         });
         break;
     }
@@ -62,17 +69,23 @@ export const PartGForm = ({
   const removeFile = (type: string) => {
     switch (type) {
       case "partnerschaftsregister":
-        setPartnerschaftsregisterFile(null);
+        setDokumente({
+          ...dokumente,
+          partnerschaftsregister: null,
+        });
         onFieldsChange({
           ...formData,
           partnerschaftsregisterFile: null,
         });
         break;
       case "transparenzregister":
-        setTransparenzregisterFile(null);
+        setDokumente({
+          ...dokumente,
+          partnerschaftsvertrag: null,
+        });
         onFieldsChange({
           ...formData,
-          transparenzregisterFile: null,
+          partnerschaftsvertragFile: null,
         });
         break;
     }
@@ -85,6 +98,14 @@ export const PartGForm = ({
       ...formData,
       hasPep: newState.hasPep,
       pepDetails: newState.pepDetails,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -109,6 +130,13 @@ export const PartGForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Partnerschaftsregisterauszug */}
@@ -140,8 +168,8 @@ export const PartGForm = ({
               >
                 <Upload className="mb-2 h-10 w-10 text-gray-400" />
                 <span className="mt-2 text-sm font-medium text-gray-700">
-                  {partnerschaftsregisterFile
-                    ? partnerschaftsregisterFile.name
+                  {dokumente.partnerschaftsregister
+                    ? dokumente.partnerschaftsregister.name
                     : "Partnerschaftsregisterauszug hochladen"}
                 </span>
                 <span className="mt-1 text-xs text-gray-500">
@@ -150,11 +178,11 @@ export const PartGForm = ({
               </label>
             </div>
 
-            {partnerschaftsregisterFile && (
+            {dokumente.partnerschaftsregister && (
               <div className="mt-4 flex items-center justify-between rounded border bg-white p-3">
                 <div className="flex items-center">
                   <FileText className="mr-2 h-5 w-5 text-blue-600" />
-                  <span>{partnerschaftsregisterFile.name}</span>
+                  <span>{dokumente.partnerschaftsregister.name}</span>
                 </div>
                 <Button
                   variant="ghost"
@@ -196,8 +224,8 @@ export const PartGForm = ({
               >
                 <Upload className="mb-2 h-10 w-10 text-gray-400" />
                 <span className="mt-2 text-sm font-medium text-gray-700">
-                  {transparenzregisterFile
-                    ? transparenzregisterFile.name
+                  {dokumente.partnerschaftsvertrag
+                    ? dokumente.partnerschaftsvertrag.name
                     : "Transparenzregisterauszug hochladen"}
                 </span>
                 <span className="mt-1 text-xs text-gray-500">
@@ -206,11 +234,11 @@ export const PartGForm = ({
               </label>
             </div>
 
-            {transparenzregisterFile && (
+            {dokumente.partnerschaftsvertrag && (
               <div className="mt-4 flex items-center justify-between rounded border bg-white p-3">
                 <div className="flex items-center">
                   <FileText className="mr-2 h-5 w-5 text-blue-600" />
-                  <span>{transparenzregisterFile.name}</span>
+                  <span>{dokumente.partnerschaftsvertrag.name}</span>
                 </div>
                 <Button
                   variant="ghost"

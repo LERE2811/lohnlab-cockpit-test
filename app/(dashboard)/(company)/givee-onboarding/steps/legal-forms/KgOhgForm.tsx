@@ -5,7 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { TransparenzregisterInfoDialog, PepCheckComponent } from "./components";
+import {
+  TransparenzregisterInfoDialog,
+  PepCheckComponent,
+  IndustrySelect,
+} from "./components";
 
 interface KgOhgFormProps {
   onFieldsChange: (fields: any) => void;
@@ -29,6 +33,7 @@ export const KgOhgForm = ({
     useState<File | null>(null);
   const [hasLegalEntityRepresentative, setHasLegalEntityRepresentative] =
     useState<boolean | null>(formData.hasLegalEntityRepresentative || null);
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
@@ -110,6 +115,14 @@ export const KgOhgForm = ({
     });
   };
 
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -132,6 +145,13 @@ export const KgOhgForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Handelsregisterauszug */}

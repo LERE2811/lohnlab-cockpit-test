@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface VereinGenossFormProps {
   onFieldsChange: (fields: any) => void;
@@ -26,6 +26,10 @@ export const VereinGenossForm = ({
   const [protokollFile, setProtokollFile] = useState<File | null>(null);
   const [transparenzregisterFile, setTransparenzregisterFile] =
     useState<File | null>(null);
+  const [vereinsregisterFile, setVereinsregisterFile] = useState<File | null>(
+    null,
+  );
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
@@ -121,6 +125,14 @@ export const VereinGenossForm = ({
     });
   };
 
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
   const handleRegisteredChange = (value: boolean) => {
     setIsRegistered(value);
     onFieldsChange({
@@ -156,6 +168,13 @@ export const VereinGenossForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-4">
           <div className="space-y-2">

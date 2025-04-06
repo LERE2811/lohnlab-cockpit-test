@@ -2,7 +2,15 @@
 
 import { StepLayout } from "../components/StepLayout";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileSymlink, FileWarning, FileCheck } from "lucide-react";
+import {
+  FileCheck,
+  Download,
+  CreditCard,
+  Building2,
+  AlertCircle,
+  Loader2,
+  Check,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -13,79 +21,681 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGivveOnboarding } from "../context/givve-onboarding-context";
-import { useState } from "react";
+import { useCompany } from "@/context/company-context";
+import { useState, useEffect } from "react";
+import { Separator } from "@/components/ui/separator";
+import {
+  loadPdfFromUrl,
+  fillPdfForm,
+  savePdfAsBlob,
+  mapCompanyDataToBestellformular,
+  mapCompanyDataToDokumentationsbogen,
+  analyzePdfForm,
+} from "@/lib/pdf/formFiller";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/utils/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { GivveOnboardingStep } from "../context/givve-onboarding-context";
 
 export const OrderFormsStep = () => {
-  const { saveProgress } = useGivveOnboarding();
-  const [formDownloaded, setFormDownloaded] = useState(false);
+  const {
+    formData: onboardingData,
+    updateFormData,
+    nextStep,
+  } = useGivveOnboarding();
+  const { subsidiary, company } = useCompany();
+  const { toast } = useToast();
+  const [bestellFormularDownloaded, setBestellFormularDownloaded] =
+    useState(false);
+  const [dokumentationsbogenDownloaded, setDokumentationsbogenDownloaded] =
+    useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
 
-  const handleDownloadForm = () => {
-    // In a real implementation, this would download the forms
-    // For now, just set the state to indicate the form was downloaded
-    setFormDownloaded(true);
+  // Initialize form data from context
+  useEffect(() => {
+    if (onboardingData?.documents?.orderForms) {
+      setBestellFormularDownloaded(
+        onboardingData.documents.orderForms.bestellformularDownloaded || false,
+      );
+      setDokumentationsbogenDownloaded(
+        onboardingData.documents.orderForms.dokumentationsbogenDownloaded ||
+          false,
+      );
+    }
+  }, [onboardingData]);
+
+  // Get the legal form from the subsidiary
+  const legalForm = subsidiary?.legal_form || "";
+
+  // Normalize the legal form for consistent comparison
+  const getNormalizedLegalForm = () => {
+    return legalForm.replace(/\s+/g, "").toUpperCase();
+  };
+
+  // Get the document type for mapping data to form fields
+  const getDocumentType = () => {
+    const normalizedLegalForm = getNormalizedLegalForm();
+
+    if (normalizedLegalForm === "GMBH") {
+      return "GmbH";
+    } else if (normalizedLegalForm === "UG") {
+      return "UG";
+    } else if (normalizedLegalForm.includes("AG")) {
+      return "AG";
+    } else if (normalizedLegalForm === "GBR") {
+      return "GbR";
+    } else if (normalizedLegalForm === "KG" || normalizedLegalForm === "OHG") {
+      return "KG_OHG";
+    } else {
+      return normalizedLegalForm;
+    }
+  };
+
+  // Get the name of the Dokumentationsbogen for display
+  const getDokumentationsbogenName = () => {
+    const normalizedLegalForm = getNormalizedLegalForm();
+
+    if (normalizedLegalForm === "GMBH" || normalizedLegalForm === "UG") {
+      return "Dokumentationsbogen GmbH/UG";
+    } else if (
+      normalizedLegalForm.includes("AG") &&
+      !normalizedLegalForm.includes("GMBH")
+    ) {
+      return "Dokumentationsbogen AG";
+    } else if (
+      normalizedLegalForm.includes("GMBH") &&
+      normalizedLegalForm.includes("KG")
+    ) {
+      return "Dokumentationsbogen GmbH & Co. KG";
+    } else if (normalizedLegalForm === "KG" || normalizedLegalForm === "OHG") {
+      return "Dokumentationsbogen KG/OHG";
+    } else if (
+      normalizedLegalForm === "KDÖR" ||
+      normalizedLegalForm === "KDOER"
+    ) {
+      return "Dokumentationsbogen KdöR";
+    } else if (normalizedLegalForm.includes("PARTG")) {
+      return "Dokumentationsbogen PartG/PartG mbB";
+    } else if (normalizedLegalForm === "E.V." || normalizedLegalForm === "EG") {
+      return "Dokumentationsbogen Verein/Genossenschaft";
+    } else if (normalizedLegalForm === "GBR") {
+      return "Dokumentationsbogen GbR";
+    } else if (
+      normalizedLegalForm === "EINZELUNTERNEHMEN" ||
+      normalizedLegalForm === "FREIBERUFLER" ||
+      normalizedLegalForm === "E.K."
+    ) {
+      return "Dokumentationsbogen Natürliche Person";
+    } else {
+      return "Dokumentationsbogen Juristische Person";
+    }
+  };
+
+  // Compile all company and subsidiary data for form filling
+  const compileFormData = (subsidiaryData?: any, contactsData?: any[]) => {
+    // Use the provided data or fall back to the context data
+    const subData = subsidiaryData || subsidiary;
+
+    // Debug log for onboardingData
+    console.log("Onboarding data documents:", onboardingData.documents);
+
+    // Find a contact to use (prioritize those with categories containing "payroll" if available)
+    const contacts = contactsData || [];
+    let selectedContact = contacts[0] || {}; // Default to first contact if available
+
+    // Try to find a payroll contact if multiple contacts exist
+    if (contacts.length > 1) {
+      const payrollContact = contacts.find((contact) =>
+        contact.categories?.some(
+          (cat: string) =>
+            cat.toLowerCase().includes("payroll") ||
+            cat.toLowerCase().includes("lohn"),
+        ),
+      );
+
+      if (payrollContact) {
+        selectedContact = payrollContact;
+      }
+    }
+
+    const formData = {
+      companyName: company?.name || "",
+      subsidiaryName: subData?.name || "",
+      legalForm: subData?.legal_form || "",
+      registrationNumber: subData?.commercial_register_number || "",
+      registrationOffice: subData?.commercial_register || "",
+      // Use headquarters fields for address information or data from documents if available
+      street:
+        onboardingData?.documents?.street || subData?.headquarters_street || "",
+      houseNumber:
+        onboardingData?.documents?.houseNumber ||
+        subData?.headquarters_house_number ||
+        "",
+      postalCode:
+        onboardingData?.documents?.postalCode ||
+        subData?.headquarters_postal_code ||
+        "",
+      city: onboardingData?.documents?.city || subData?.headquarters_city || "",
+      // Contact information - try to use data from documents first
+      contactFirstName:
+        onboardingData?.documents?.firstName || selectedContact.firstname || "",
+      contactLastName:
+        onboardingData?.documents?.lastName || selectedContact.lastname || "",
+      contactEmail: selectedContact.email || "",
+      contactPhone: selectedContact.phone || "",
+      contactPosition: selectedContact.category || "Ansprechpartner",
+      // Givve specific information
+      cardType:
+        onboardingData.cardType || subData?.givve_card_design_type || "",
+      departmentName:
+        onboardingData.departmentName || subData?.givve_card_second_line || "",
+      // Industry category for document forms
+      industryCategory:
+        onboardingData?.documents?.industry ||
+        subData?.givve_industry_category ||
+        "",
+      // Personal information for Dokumentationsbogen (from the onboardingData documents object)
+      birthDate: onboardingData?.documents?.birthDate || "",
+      birthPlace: onboardingData?.documents?.birthPlace || "",
+      nationality: onboardingData?.documents?.nationality || "",
+    };
+
+    console.log("Compiled form data:", formData);
+    return formData;
+  };
+
+  const generateFileLink = async (filePath: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("givve_documents")
+        .createSignedUrl(filePath, 3600);
+
+      if (error) {
+        throw error;
+      }
+
+      return data?.signedUrl || null;
+    } catch (error) {
+      console.error("Error generating file link:", error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Generieren des Download-Links.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
+  const handleDownload = async (
+    formType: "bestellformular" | "dokumentationsbogen",
+  ) => {
+    if (!subsidiary) {
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Abrufen der Firmendaten.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(formType);
+
+    try {
+      // Fetch subsidiary data
+      const { data: fullSubsidiaryData, error: subsidiaryError } =
+        await supabase
+          .from("subsidiaries")
+          .select("*")
+          .eq("id", subsidiary.id)
+          .single();
+
+      if (subsidiaryError) {
+        console.error("Error fetching subsidiary data:", subsidiaryError);
+        toast({
+          title: "Fehler",
+          description: "Fehler beim Abrufen der vollständigen Firmendaten.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Fetch contacts separately from ansprechpartner table
+      const { data: contactsData, error: contactsError } = await supabase
+        .from("ansprechpartner")
+        .select("*")
+        .eq("company_id", company?.id || "");
+
+      if (contactsError) {
+        console.error("Error fetching contacts data:", contactsError);
+      }
+
+      // Create a combined data object
+      const combinedData = {
+        ...fullSubsidiaryData,
+        contacts: contactsData || [],
+      };
+
+      console.log("Full subsidiary data:", fullSubsidiaryData);
+      console.log("Contacts data:", contactsData);
+
+      let filePath = "";
+
+      if (formType === "bestellformular") {
+        filePath = "templates/Bestellformular.pdf";
+      } else if (formType === "dokumentationsbogen") {
+        // Use the appropriate Dokumentationsbogen based on legal form
+        const docType = getDocumentType();
+        switch (docType) {
+          case "GmbH":
+          case "UG":
+            filePath = "templates/Dokumentationsbogen_JP_GmbH_UG.pdf";
+            break;
+          case "GbR":
+            filePath = "templates/Dokumentationsbogen_GbR.pdf";
+            break;
+          case "AG":
+            filePath = "templates/Dokumentationsbogen_JP_AG.pdf";
+            break;
+          case "KG_OHG":
+            filePath = "templates/Dokumentationsbogen_JP_KG_OHG.pdf";
+            break;
+          case "KdöR":
+            filePath = "templates/Dokumentationsbogen_JP_KdöR.pdf";
+            break;
+          case "PartG":
+          case "PartG mbB":
+            filePath = "templates/Dokumentationsbogen_JP_PartG__PartG_mbB.pdf";
+            break;
+          case "EINZELUNTERNEHMEN":
+          case "FREIBERUFLER":
+          case "E.K.":
+            filePath = "templates/Dokumentationsbogen_NP.pdf";
+            break;
+          case "E.V.":
+          case "EG":
+            filePath = "templates/Dokumentationsbogen_JP_V_G.pdf";
+            break;
+          case "GmbH & Co. KG":
+            filePath = "templates/UPgivve_Dokumentationsbogen_JP_GmbH_CoKG.pdf";
+            break;
+          // Default case for any other legal forms
+          default:
+            filePath = "templates/Dokumentationsbogen_JP_allgemein.pdf";
+        }
+      }
+
+      const downloadUrl = await generateFileLink(filePath);
+
+      if (!downloadUrl) {
+        throw new Error("Fehler beim Generieren des Download-Links");
+      }
+
+      // Compile form data
+      const formData = compileFormData(fullSubsidiaryData, contactsData || []);
+
+      // Debug log for form data
+      console.log("Form data for filling:", formData);
+
+      // Load the PDF from the URL
+      const pdfDoc = await loadPdfFromUrl(downloadUrl);
+
+      // Map the data based on form type
+      let mappedData;
+      if (formType === "bestellformular") {
+        mappedData = mapCompanyDataToBestellformular(formData);
+        console.log("Mapped data for Bestellformular:", mappedData);
+      } else if (formType === "dokumentationsbogen") {
+        mappedData = mapCompanyDataToDokumentationsbogen(
+          formData,
+          getDocumentType(),
+        );
+        console.log("Mapped data for Dokumentationsbogen:", mappedData);
+      } else {
+        throw new Error("Ungültiger Formulartyp");
+      }
+
+      // Fill the PDF form
+      const filledPdfDoc = await fillPdfForm(pdfDoc, mappedData);
+
+      // Save the filled PDF as a blob
+      const { url } = await savePdfAsBlob(
+        filledPdfDoc,
+        formType === "bestellformular"
+          ? "Bestellformular.pdf"
+          : `${getDokumentationsbogenName()}.pdf`,
+      );
+
+      // Open the filled PDF in a new tab
+      window.open(url, "_blank");
+
+      // Update the download status
+      if (formType === "bestellformular") {
+        setBestellFormularDownloaded(true);
+      } else if (formType === "dokumentationsbogen") {
+        setDokumentationsbogenDownloaded(true);
+      }
+
+      // Calculate the updated download states after this action
+      const willBestellformularBeDownloaded =
+        formType === "bestellformular" || bestellFormularDownloaded;
+      const willDokumentationsbogenBeDownloaded =
+        formType === "dokumentationsbogen" || dokumentationsbogenDownloaded;
+      const willBothBeDownloaded =
+        willBestellformularBeDownloaded && willDokumentationsbogenBeDownloaded;
+
+      // Prepare updated form data
+      const updatedOrderForms = {
+        ...onboardingData.documents?.orderForms,
+        [`${formType}Downloaded`]: true,
+      };
+
+      const updatedDocuments = {
+        ...onboardingData.documents,
+        orderForms: updatedOrderForms,
+      };
+
+      // Always update local state to reflect the download
+      updateFormData({
+        documents: updatedDocuments,
+      });
+
+      // NEVER use saveProgress for downloads to prevent automatic step advancement
+      // Always do direct database updates instead
+      try {
+        // Update the givve_onboarding_progress record directly
+        const { data: progressData } = await supabase
+          .from("givve_onboarding_progress")
+          .select("id, form_data")
+          .eq("subsidiary_id", subsidiary.id)
+          .maybeSingle();
+
+        if (progressData?.id) {
+          // Update existing record's form_data without changing the step
+          const updatedFormData = {
+            ...progressData.form_data,
+            documents: updatedDocuments,
+          };
+
+          await supabase
+            .from("givve_onboarding_progress")
+            .update({
+              form_data: updatedFormData,
+              last_updated: new Date().toISOString(),
+            })
+            .eq("id", progressData.id);
+        }
+
+        // Update subsidiary table with forms downloaded status
+        await supabase
+          .from("subsidiaries")
+          .update({
+            givve_order_forms_downloaded: willBestellformularBeDownloaded,
+            givve_documentation_forms_downloaded:
+              willDokumentationsbogenBeDownloaded,
+          })
+          .eq("id", subsidiary.id);
+      } catch (error) {
+        console.error("Error silently updating download status:", error);
+        // Don't show error to user, as the download itself was successful
+      }
+
+      toast({
+        title: "Erfolg",
+        description: "Formular wurde heruntergeladen.",
+      });
+    } catch (error) {
+      console.error("Error downloading form:", error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Herunterladen des Formulars.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleContinue = async () => {
-    // Save progress and move to the next step
-    await saveProgress({ documentsSubmitted: true });
+    try {
+      // Check if both forms are marked as downloaded
+      if (!bestellFormularDownloaded || !dokumentationsbogenDownloaded) {
+        toast({
+          title: "Hinweis",
+          description:
+            "Bitte laden Sie beide Formulare herunter, um fortzufahren.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update form data with both forms downloaded
+      const updatedOrderForms = {
+        bestellformularDownloaded: true,
+        dokumentationsbogenDownloaded: true,
+      };
+
+      const updatedDocuments = {
+        ...onboardingData.documents,
+        orderForms: updatedOrderForms,
+      };
+
+      // Update local state first
+      updateFormData({
+        documents: updatedDocuments,
+      });
+
+      try {
+        // First, get the next step
+        const nextStepValue = GivveOnboardingStep.ORDER_FORMS + 1;
+
+        // Update the givve_onboarding_progress record directly
+        const { data: progressData } = await supabase
+          .from("givve_onboarding_progress")
+          .select("id, form_data")
+          .eq("subsidiary_id", subsidiary?.id || "")
+          .maybeSingle();
+
+        if (progressData?.id) {
+          // Update existing record's form_data and manually set the next step
+          const updatedFormData = {
+            ...progressData.form_data,
+            documents: updatedDocuments,
+          };
+
+          await supabase
+            .from("givve_onboarding_progress")
+            .update({
+              form_data: updatedFormData,
+              current_step: nextStepValue,
+              last_updated: new Date().toISOString(),
+            })
+            .eq("id", progressData.id);
+        }
+
+        // Update subsidiary table with forms downloaded status and next step
+        await supabase
+          .from("subsidiaries")
+          .update({
+            givve_order_forms_downloaded: true,
+            givve_documentation_forms_downloaded: true,
+            givve_onboarding_step: nextStepValue,
+          })
+          .eq("id", subsidiary?.id || "");
+
+        // Manually navigate to the next step
+        nextStep();
+      } catch (error) {
+        console.error("Error updating progress:", error);
+        toast({
+          title: "Fehler",
+          description: "Fehler beim Speichern des Fortschritts.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error in handleContinue:", error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Speichern des Fortschritts.",
+        variant: "destructive",
+      });
+    }
   };
+
+  // Utility function for developers to analyze PDF form fields
+  // You can call this from the browser console: window.analyzePdfFields('/assets/Givve/Bestellformular.pdf')
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // Expose utility function globally for developers
+      (window as any).analyzePdfFields = async (pdfUrl: string) => {
+        try {
+          console.log(`Analyzing PDF fields from: ${pdfUrl}`);
+          const fields = await analyzePdfForm(pdfUrl);
+
+          console.log("============ PDF FORM FIELDS ============");
+          console.table(fields);
+          console.log("Total fields:", fields.length);
+          console.log("=======================================");
+
+          // Return for further processing if needed
+          return fields;
+        } catch (error) {
+          console.error("Error analyzing PDF:", error);
+        }
+      };
+    }
+  }, []);
 
   return (
     <StepLayout
-      title="Bestellformular & Dokumentationsbogen"
-      description="Herunterladen und Ausfüllen der benötigten Formulare"
+      title="Bestellformulare"
+      description="Laden Sie die erforderlichen Bestellformulare herunter und füllen Sie diese aus."
       onSave={handleContinue}
-      disableNext={!formDownloaded}
+      saveButtonText="Weiter zur Unterschrift"
+      disableNext={
+        !bestellFormularDownloaded ||
+        !dokumentationsbogenDownloaded ||
+        loading !== null
+      }
+      status={onboardingData.status}
     >
       <div className="space-y-6">
-        <Alert
-          variant="default"
-          className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
-        >
-          <FileWarning className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <AlertDescription className="text-amber-800 dark:text-amber-200">
-            Dies ist ein Platzhalter. Die vollständige Funktionalität folgt in
-            weiteren Updates.
+        <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+          <AlertCircle className="h-5 w-5 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            Bitte laden Sie beide Formulare herunter. Die Formulare werden mit
+            Ihren Daten vorausgefüllt, müssen aber ggf. ergänzt und
+            unterschrieben werden.
           </AlertDescription>
         </Alert>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center text-lg">
-              <FileSymlink className="mr-2 h-5 w-5 text-primary" />
-              Bestellformular für givve® Card
-            </CardTitle>
-            <CardDescription>
-              Bitte laden Sie das Bestellformular herunter und füllen Sie es
-              vollständig aus.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Das Bestellformular enthält alle notwendigen Informationen zur
-              Bestellung Ihrer givve® Cards. Bitte stellen Sie sicher, dass
-              alle erforderlichen Felder ausgefüllt sind.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={handleDownloadForm}>
-              <FileCheck className="mr-2 h-4 w-4" />
-              {formDownloaded
-                ? "Formular erneut herunterladen"
-                : "Formular herunterladen"}
-            </Button>
-          </CardFooter>
-        </Card>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <CreditCard className="mr-2 h-5 w-5 text-primary" />
+                Bestellformular für givve® Card
+              </CardTitle>
+              <CardDescription>
+                Enthält Informationen zur Bestellung und Abrechnung
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Das Bestellformular enthält alle notwendigen Informationen zur
+                  Bestellung Ihrer givve® Cards:
+                </p>
+                <ul className="ml-2 list-inside list-disc space-y-1">
+                  <li>Kundeninformationen</li>
+                  <li>Karteninformationen</li>
+                  <li>Lieferung und Abrechnung</li>
+                  <li>SEPA-Lastschriftmandat</li>
+                </ul>
+              </div>
+            </CardContent>
+            <Separator />
+            <CardFooter className="pt-4">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleDownload("bestellformular")}
+                disabled={loading !== null}
+              >
+                {loading === "bestellformular" ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Dokument wird vorbereitet...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    {bestellFormularDownloaded
+                      ? "Formular erneut herunterladen"
+                      : "Bestellformular herunterladen"}
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
 
-        {formDownloaded && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <Building2 className="mr-2 h-5 w-5 text-primary" />
+                {getDokumentationsbogenName()}
+              </CardTitle>
+              <CardDescription>
+                Gem. deutschem Geldwäschegesetz erforderlich
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Der Dokumentationsbogen ist gesetzlich vorgeschrieben:</p>
+                <ul className="ml-2 list-inside list-disc space-y-1">
+                  <li>Erfassung des wirtschaftlich Berechtigten</li>
+                  <li>Dokumentation der Eigentums- und Kontrollstruktur</li>
+                  <li>PEP-Prüfung (Politisch exponierte Person)</li>
+                  <li>Spezifisch für Ihre Rechtsform: {legalForm}</li>
+                </ul>
+              </div>
+            </CardContent>
+            <Separator />
+            <CardFooter className="pt-4">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleDownload("dokumentationsbogen")}
+                disabled={loading !== null}
+              >
+                {loading === "dokumentationsbogen" ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Dokument wird vorbereitet...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    {dokumentationsbogenDownloaded
+                      ? "Formular erneut herunterladen"
+                      : "Dokumentationsbogen herunterladen"}
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {bestellFormularDownloaded && dokumentationsbogenDownloaded && (
           <Alert
             variant="default"
-            className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200"
+            className="border-green-200 bg-green-50 text-green-800"
           >
-            <FileCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-            <AlertDescription className="text-green-800 dark:text-green-200">
-              Formular erfolgreich heruntergeladen. Bitte füllen Sie es aus und
-              fahren Sie mit dem nächsten Schritt fort.
+            <FileCheck className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              Beide Formulare wurden heruntergeladen. Die Formulare sind mit
+              Ihren Daten vorausgefüllt, bitte prüfen Sie diese, ergänzen Sie
+              fehlende Angaben und unterschreiben Sie die Dokumente.
             </AlertDescription>
           </Alert>
         )}

@@ -248,6 +248,7 @@ type SubsidiarySchemaType = z.ZodObject<{
   payroll_contacts: z.ZodOptional<z.ZodArray<z.ZodLazy<z.ZodType<any>>>>;
   onboarding_progress: z.ZodOptional<z.ZodLazy<z.ZodType<any>>>;
   beneficial_owners: z.ZodOptional<z.ZodArray<z.ZodLazy<z.ZodType<any>>>>;
+  givve_onboarding_progress: z.ZodOptional<z.ZodLazy<z.ZodType<any>>>;
 }>;
 
 type UserProfileSchemaType = z.ZodObject<{
@@ -325,6 +326,19 @@ type BeneficialOwnerSchemaType = z.ZodObject<{
   has_public_office: z.ZodBoolean;
   public_office_description: z.ZodOptional<z.ZodString>;
   created_at: z.ZodDate;
+  subsidiary: z.ZodOptional<z.ZodLazy<z.ZodType<any>>>;
+}>;
+
+// Define GivveOnboardingProgress schema type
+type GivveOnboardingProgressSchemaType = z.ZodObject<{
+  id: z.ZodString;
+  subsidiary_id: z.ZodString;
+  current_step: z.ZodNumber;
+  form_data: z.ZodRecord<z.ZodString, z.ZodAny>;
+  last_updated: z.ZodDate;
+  created_at: z.ZodDate;
+  completed: z.ZodBoolean;
+  status: z.ZodOptional<z.ZodString>;
   subsidiary: z.ZodOptional<z.ZodLazy<z.ZodType<any>>>;
 }>;
 
@@ -470,6 +484,9 @@ export const subsidiarySchema: SubsidiarySchemaType = z.object({
   payroll_contacts: z.array(z.lazy(() => payrollContactSchema)).optional(),
   onboarding_progress: z.lazy(() => onboardingProgressSchema).optional(),
   beneficial_owners: z.array(z.lazy(() => beneficialOwnerSchema)).optional(),
+  givve_onboarding_progress: z
+    .lazy(() => givveOnboardingProgressSchema)
+    .optional(),
 });
 
 export const userProfileSchema: UserProfileSchemaType = z.object({
@@ -545,6 +562,20 @@ export const beneficialOwnerSchema: BeneficialOwnerSchemaType = z.object({
   created_at: z.date(),
   subsidiary: z.lazy(() => subsidiarySchema).optional(),
 });
+
+// Add the GivveOnboardingProgress schema
+export const givveOnboardingProgressSchema: GivveOnboardingProgressSchemaType =
+  z.object({
+    id: z.string().uuid(),
+    subsidiary_id: z.string().uuid(),
+    current_step: z.number(),
+    form_data: z.record(z.string(), z.any()),
+    last_updated: z.date(),
+    created_at: z.date(),
+    completed: z.boolean(),
+    status: z.string().optional(),
+    subsidiary: z.lazy(() => subsidiarySchema).optional(),
+  });
 
 // Inferred Types
 export type Company = z.infer<typeof companySchema>;

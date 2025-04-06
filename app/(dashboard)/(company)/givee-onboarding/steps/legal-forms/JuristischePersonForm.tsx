@@ -6,16 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { PepCheckComponent, IndustrySelect } from "./components";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface JuristischePersonFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
 export const JuristischePersonForm = ({
   onFieldsChange,
   formData,
+  legalForm,
 }: JuristischePersonFormProps) => {
   const [isRegistered, setIsRegistered] = useState<boolean | null>(
     formData.isRegistered !== undefined ? formData.isRegistered : null,
@@ -27,9 +30,14 @@ export const JuristischePersonForm = ({
     useState<File | null>(null);
   const [transparenzregisterFile, setTransparenzregisterFile] =
     useState<File | null>(null);
+  const [representativeInfoFile, setRepresentativeInfoFile] =
+    useState<File | null>(null);
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
+    hasLegalEntityRepresentative:
+      formData.hasLegalEntityRepresentative || false,
   });
 
   const handleRegistrationChange = (value: string) => {
@@ -94,6 +102,25 @@ export const JuristischePersonForm = ({
     }
   };
 
+  const handleRepresentativeChange = (hasRep: boolean) => {
+    setDocumentState({
+      ...documentState,
+      hasLegalEntityRepresentative: hasRep,
+    });
+    onFieldsChange({
+      ...formData,
+      hasLegalEntityRepresentative: hasRep,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
   // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
     setDocumentState(newState);
@@ -126,6 +153,13 @@ export const JuristischePersonForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-4">
           <RadioGroup

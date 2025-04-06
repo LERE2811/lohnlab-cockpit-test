@@ -4,18 +4,23 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Building2, Info } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { Building2, Info, Upload, FileText, Trash2 } from "lucide-react";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface FreiberuflerFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
 export const FreiberuflerForm = ({
   onFieldsChange,
   formData,
+  legalForm,
 }: FreiberuflerFormProps) => {
+  const [addressVerificationFile, setAddressVerificationFile] =
+    useState<File | null>(null);
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     firstName: formData.firstName || "",
     lastName: formData.lastName || "",
@@ -45,16 +50,19 @@ export const FreiberuflerForm = ({
 
   // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
-    const updatedState = {
-      ...documentState,
-      hasPep: newState.hasPep,
-      pepDetails: newState.pepDetails,
-    };
-
-    setDocumentState(updatedState);
+    setDocumentState(newState);
     onFieldsChange({
       ...formData,
-      ...updatedState,
+      hasPep: newState.hasPep,
+      pepDetails: newState.pepDetails,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -79,6 +87,13 @@ export const FreiberuflerForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-4">
           <div className="space-y-4 rounded-lg border p-4">

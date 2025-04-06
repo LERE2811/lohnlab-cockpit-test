@@ -9,14 +9,7 @@ import { StepSidebar } from "@/app/(dashboard)/(company)/givee-onboarding/compon
 import { CardTypeStep } from "./steps/CardTypeStep";
 import { RequiredDocumentsStep } from "./steps/RequiredDocumentsStep";
 import { OrderFormsStep } from "./steps/OrderFormsStep";
-import { ReadyForSignatureStep } from "./steps/ReadyForSignatureStep";
 import { SignedFormsStep } from "./steps/SignedFormsStep";
-import { DocumentsSubmittedStep } from "./steps/DocumentsSubmittedStep";
-import { VideoIdentificationLinkStep } from "./steps/VideoIdentificationLinkStep";
-import { CardDesignVerificationStep } from "./steps/CardDesignVerificationStep";
-import { VideoIdentificationCompletedStep } from "./steps/VideoIdentificationCompletedStep";
-import { InitialInvoiceReceivedStep } from "./steps/InitialInvoiceReceivedStep";
-import { InitialInvoicePaidStep } from "./steps/InitialInvoicePaidStep";
 import { CompletedStep } from "./steps/CompletedStep";
 import { useCompany } from "@/context/company-context";
 import { useEffect } from "react";
@@ -34,22 +27,8 @@ const CurrentStep = () => {
       return <RequiredDocumentsStep />;
     case GivveOnboardingStep.ORDER_FORMS:
       return <OrderFormsStep />;
-    case GivveOnboardingStep.READY_FOR_SIGNATURE:
-      return <ReadyForSignatureStep />;
     case GivveOnboardingStep.SIGNED_FORMS:
       return <SignedFormsStep />;
-    case GivveOnboardingStep.DOCUMENTS_SUBMITTED:
-      return <DocumentsSubmittedStep />;
-    case GivveOnboardingStep.VIDEO_IDENTIFICATION_LINK:
-      return <VideoIdentificationLinkStep />;
-    case GivveOnboardingStep.CARD_DESIGN_VERIFICATION:
-      return <CardDesignVerificationStep />;
-    case GivveOnboardingStep.VIDEO_IDENTIFICATION_COMPLETED:
-      return <VideoIdentificationCompletedStep />;
-    case GivveOnboardingStep.INITIAL_INVOICE_RECEIVED:
-      return <InitialInvoiceReceivedStep />;
-    case GivveOnboardingStep.INITIAL_INVOICE_PAID:
-      return <InitialInvoicePaidStep />;
     case GivveOnboardingStep.COMPLETED:
       return <CompletedStep />;
     default:
@@ -71,13 +50,6 @@ const CurrentStep = () => {
 const GivveOnboardingWrapper = () => {
   const { subsidiary, isLoading: isCompanyLoading } = useCompany();
   const router = useRouter();
-
-  // Redirect to dashboard if no subsidiary or givve card not enabled
-  useEffect(() => {
-    if (!isCompanyLoading && (!subsidiary || !subsidiary.has_givve_card)) {
-      router.push("/dashboard");
-    }
-  }, [subsidiary, isCompanyLoading, router]);
 
   if (isCompanyLoading) {
     return (

@@ -15,14 +15,23 @@ import {
   Trash2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TransparenzregisterInfoDialog, PepCheckComponent } from "./components";
+import {
+  TransparenzregisterInfoDialog,
+  PepCheckComponent,
+  IndustrySelect,
+} from "./components";
 
 interface AGFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
-export const AGForm = ({ onFieldsChange, formData }: AGFormProps) => {
+export const AGForm = ({
+  onFieldsChange,
+  formData,
+  legalForm,
+}: AGFormProps) => {
   const [handelregisterFile, setHandelregisterFile] = useState<File | null>(
     null,
   );
@@ -37,6 +46,7 @@ export const AGForm = ({ onFieldsChange, formData }: AGFormProps) => {
   const [otherStockExchange, setOtherStockExchange] = useState<string>(
     formData.otherStockExchange || "",
   );
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
@@ -108,6 +118,14 @@ export const AGForm = ({ onFieldsChange, formData }: AGFormProps) => {
     });
   };
 
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
   // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
     setDocumentState(newState);
@@ -139,6 +157,13 @@ export const AGForm = ({ onFieldsChange, formData }: AGFormProps) => {
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Handelsregisterauszug */}

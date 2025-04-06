@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Building2, Upload, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface DocumentState {
   selectedType: string;
@@ -21,9 +21,14 @@ interface DocumentState {
 interface GbrFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
-export const GbrForm = ({ onFieldsChange, formData }: GbrFormProps) => {
+export const GbrForm = ({
+  onFieldsChange,
+  formData,
+  legalForm,
+}: GbrFormProps) => {
   const [documentState, setDocumentState] = useState<DocumentState>({
     selectedType: formData.selectedType || "",
     gesellschaftsvertragFile: null,
@@ -33,6 +38,7 @@ export const GbrForm = ({ onFieldsChange, formData }: GbrFormProps) => {
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
   });
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
 
   // Get company address from formData
   const headquarterAddress = {
@@ -50,6 +56,14 @@ export const GbrForm = ({ onFieldsChange, formData }: GbrFormProps) => {
     onFieldsChange({
       ...formData,
       selectedType: value,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -182,6 +196,13 @@ export const GbrForm = ({ onFieldsChange, formData }: GbrFormProps) => {
             laden Sie die entsprechenden Nachweise hoch.
           </p>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-4">
           <RadioGroup

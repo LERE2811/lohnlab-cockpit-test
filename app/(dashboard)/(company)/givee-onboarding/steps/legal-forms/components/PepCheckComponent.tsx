@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,23 +19,54 @@ export function PepCheckComponent({
   setDocumentState,
   className = "",
 }: PepCheckComponentProps) {
-  const [showPepDetails, setShowPepDetails] = useState(documentState.hasPep);
+  console.log("PepCheckComponent rendering with documentState:", documentState);
+
+  // Initialize state based on documentState.hasPep explicitly boolean conversion
+  const [showPepDetails, setShowPepDetails] = useState<boolean>(
+    Boolean(documentState.hasPep),
+  );
+
+  // Update showPepDetails whenever documentState changes
+  useEffect(() => {
+    console.log(
+      "PepCheckComponent documentState changed, hasPep:",
+      documentState.hasPep,
+    );
+    setShowPepDetails(Boolean(documentState.hasPep));
+  }, [documentState.hasPep]);
 
   const handlePepChange = (hasPep: boolean) => {
+    console.log("handlePepChange called with:", hasPep);
     setShowPepDetails(hasPep);
     setDocumentState({
       ...documentState,
-      hasPep,
+      hasPep: hasPep, // Ensure we're setting a boolean value
       pepDetails: hasPep ? documentState.pepDetails || "" : "",
     });
   };
 
   const handlePepDetailsChange = (details: string) => {
+    console.log("handlePepDetailsChange called with:", details);
     setDocumentState({
       ...documentState,
       pepDetails: details,
     });
   };
+
+  // Explicitly determine the radio value
+  const radioValue =
+    documentState.hasPep === true
+      ? "yes"
+      : documentState.hasPep === false
+        ? "no"
+        : "";
+
+  console.log(
+    "PepCheckComponent radioValue:",
+    radioValue,
+    "showPepDetails:",
+    showPepDetails,
+  );
 
   return (
     <div className={`rounded-lg border bg-gray-50 p-5 ${className}`}>
@@ -73,13 +104,7 @@ export function PepCheckComponent({
           </Label>
 
           <RadioGroup
-            value={
-              documentState.hasPep
-                ? "yes"
-                : documentState.hasPep === false
-                  ? "no"
-                  : ""
-            }
+            value={radioValue}
             onValueChange={(value) => handlePepChange(value === "yes")}
             className="mt-2"
           >

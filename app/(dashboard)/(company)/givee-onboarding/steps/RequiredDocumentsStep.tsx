@@ -29,6 +29,22 @@ import {
   JuristischePersonForm,
   GbrForm,
 } from "./legal-forms";
+import {
+  uploadLegalFormDocuments,
+  prepareDocumentsForSaving,
+} from "../utils/uploadLegalFormDocuments";
+import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Check, Clock, Loader2 } from "lucide-react";
+import { OnboardingFileMetadata } from "../types";
+
+// Define a custom File type for use in this component
+interface CustomFile extends File {
+  name: string;
+  size: number;
+  type: string;
+}
 
 // Define the available legal forms
 const LegalForm = {
@@ -51,162 +67,217 @@ const LegalForm = {
   SONSTIGE: "Sonstige",
 } as const;
 
+type DocumentFormData = {
+  [key: string]: CustomFile[] | OnboardingFileMetadata[] | string | boolean;
+};
+
 export const RequiredDocumentsStep = () => {
-  const { saveProgress, formData, updateFormData } = useGivveOnboarding();
+  const { formData, updateFormData, saveProgress, nextStep } =
+    useGivveOnboarding();
   const { subsidiary } = useCompany();
-  const [documentFormData, setDocumentFormData] = useState<any>({});
+  const { toast } = useToast();
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "success" | "error"
+  >("idle");
+  const [documentFormData, setDocumentFormData] = useState<DocumentFormData>(
+    {},
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get the legal form from the subsidiary
-  const legalForm = subsidiary?.legal_form || "";
-
+  // Initialize form data from context more thoroughly
   useEffect(() => {
-    // Initialize form data from the context
-    setDocumentFormData(formData.documents || {});
+    console.log("RequiredDocumentsStep - formData changed:", formData);
+    if (formData) {
+      if (formData.documents) {
+        console.log(
+          "Setting documentFormData from formData.documents:",
+          formData.documents,
+        );
+        setDocumentFormData(formData.documents);
+      } else {
+        // If no documents object exists yet, initialize with empty object
+        console.log("Initializing empty documentFormData");
+        setDocumentFormData({});
+      }
+    }
   }, [formData]);
 
-  const handleFieldsChange = (data: any) => {
-    setDocumentFormData(data);
+  const handleFormDataChange = (data: any) => {
+    console.log("handleFormDataChange called with:", data);
+
+    const updatedData = {
+      ...documentFormData,
+      ...data,
+    };
+
+    console.log("Updated documentFormData:", updatedData);
+    setDocumentFormData(updatedData);
+
+    // Make sure we update the formData with the document information nested correctly
+    updateFormData({ documents: updatedData });
   };
 
-  const handleContinue = async () => {
-    // Save all the document form data to the onboarding context
-    await saveProgress({
-      requiresAdditionalDocuments: true,
-      documents: documentFormData,
-    });
+  const handleSubmit = async () => {
+    if (!subsidiary?.id || !subsidiary?.legal_form) {
+      toast({
+        title: "Fehler",
+        description: "Fehlende Unternehmens- oder Rechtsforminformationen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadStatus("uploading");
+
+    try {
+      // Prepare files for upload
+      const filesToUpload: { [key: string]: CustomFile[] } = {};
+
+      Object.entries(documentFormData).forEach(([key, value]) => {
+        if (
+          Array.isArray(value) &&
+          value.length > 0 &&
+          value[0] instanceof File
+        ) {
+          filesToUpload[key] = value as CustomFile[];
+        }
+      });
+
+      // Check if this legal form requires file uploads
+      const requiresFileUploads = needsFileUploads(subsidiary.legal_form);
+
+      // Only validate file uploads for forms that have upload fields
+      if (requiresFileUploads && Object.keys(filesToUpload).length === 0) {
+        toast({
+          title: "Fehler",
+          description: "Bitte laden Sie mindestens ein Dokument hoch.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        setUploadStatus("idle");
+        return;
+      }
+
+      // If there are files to upload, do so
+      let uploadResults = null;
+      if (Object.keys(filesToUpload).length > 0) {
+        uploadResults = await uploadLegalFormDocuments(
+          filesToUpload,
+          subsidiary.id,
+          subsidiary.legal_form,
+        );
+
+        if (!uploadResults && requiresFileUploads) {
+          throw new Error("No files were uploaded successfully");
+        }
+      }
+
+      // Update form data with file metadata if files were uploaded
+      const updatedDocuments = { ...documentFormData };
+      if (uploadResults) {
+        Object.entries(uploadResults).forEach(([key, files]) => {
+          updatedDocuments[key] = files;
+        });
+      }
+
+      const updatedFormData = {
+        ...formData,
+        documents: updatedDocuments,
+      };
+
+      // Save progress with uploaded file information
+      await saveProgress({
+        ...updatedFormData,
+        documentsSubmitted: true,
+      });
+
+      setUploadStatus("success");
+      toast({
+        title: "Erfolg",
+        description: requiresFileUploads
+          ? "Dokumente wurden erfolgreich hochgeladen."
+          : "Daten wurden erfolgreich gespeichert.",
+        variant: "default",
+      });
+
+      // Move to next step automatically after successful upload
+      setTimeout(() => {
+        nextStep();
+      }, 1500);
+    } catch (error) {
+      console.error("Error uploading documents:", error);
+      setUploadStatus("error");
+      toast({
+        title: "Fehler",
+        description:
+          "Fehler beim Speichern der Daten. Bitte versuchen Sie es erneut.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Get the appropriate legal form component
-  const getLegalFormComponent = () => {
-    // Normalize by removing whitespace and making uppercase for safer comparison
-    const normalizedLegalForm = legalForm.replace(/\s+/g, "").toUpperCase();
+  // Helper function to determine whether a legal form requires file uploads
+  const needsFileUploads = (legalForm: string): boolean => {
+    // These legal forms don't require document uploads
+    const formsWithoutRequiredUploads = ["Einzelunternehmen", "Freiberufler"];
 
-    if (
-      normalizedLegalForm.includes("GMBH") &&
-      normalizedLegalForm.includes("KG")
-    ) {
-      return (
-        <GmbHCoKGForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm === "GMBH" || normalizedLegalForm === "UG") {
-      return (
-        <GmbHUGForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-          legalForm={legalForm}
-        />
-      );
-    } else if (
-      normalizedLegalForm.includes("GMBH") &&
-      !normalizedLegalForm.includes("KG")
-    ) {
-      return (
-        <GmbHForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (
-      normalizedLegalForm.includes("AG") &&
-      !normalizedLegalForm.includes("GMBH")
-    ) {
-      return (
-        <AGForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm === "KG" || normalizedLegalForm === "OHG") {
-      return (
-        <KgOhgForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-          legalForm={legalForm}
-        />
-      );
-    } else if (
-      normalizedLegalForm === "KDÖR" ||
-      normalizedLegalForm === "KDOER"
-    ) {
-      return (
-        <KdoerForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm.includes("PARTG")) {
-      return (
-        <PartGForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-          legalForm={legalForm}
-        />
-      );
-    } else if (normalizedLegalForm === "E.V." || normalizedLegalForm === "EG") {
-      return (
-        <VereinGenossForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-          legalForm={legalForm}
-        />
-      );
-    } else if (normalizedLegalForm === "E.K.") {
-      return (
-        <EkForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm === "EINZELUNTERNEHMEN") {
-      return (
-        <EinzelunternehmenForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm === "FREIBERUFLER") {
-      return (
-        <FreiberuflerForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm === "JURISTISCHEPERSON") {
-      return (
-        <JuristischePersonForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else if (normalizedLegalForm === "GBR") {
-      return (
-        <GbrForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-        />
-      );
-    } else {
-      // For all other legal forms, use the OtherForm component
-      return (
-        <OtherForm
-          onFieldsChange={handleFieldsChange}
-          formData={documentFormData}
-          legalForm={legalForm}
-        />
-      );
+    return !formsWithoutRequiredUploads.includes(legalForm);
+  };
+
+  // Render the appropriate form based on legal form
+  const renderLegalFormComponent = () => {
+    if (!subsidiary?.legal_form) return null;
+
+    const legalForm = subsidiary.legal_form;
+    console.log("Rendering legal form component for:", legalForm);
+    console.log("With document form data:", documentFormData);
+
+    const formProps = {
+      onChange: handleFormDataChange,
+      onFieldsChange: handleFormDataChange,
+      formData: documentFormData,
+      legalForm: legalForm,
+    };
+
+    switch (legalForm) {
+      case "Freiberufler":
+        return <FreiberuflerForm {...formProps} />;
+      case "Einzelunternehmen":
+        return <EinzelunternehmenForm {...formProps} />;
+      case "GbR":
+        return <GbrForm {...formProps} />;
+      case "e.K.":
+        return <EkForm {...formProps} />;
+      case "e.V. / e.G.":
+        return <VereinGenossForm {...formProps} />;
+      case "PartG":
+        return <PartGForm {...formProps} />;
+      case "GmbH / UG":
+        return <GmbHUGForm {...formProps} />;
+      case "GmbH & Co. KG":
+        return <GmbHCoKGForm {...formProps} />;
+      case "KdöR":
+        return <KdoerForm {...formProps} />;
+      case "KG / OHG":
+        return <KgOhgForm {...formProps} />;
+      default:
+        return <OtherForm {...formProps} />;
     }
   };
 
   return (
     <StepLayout
-      title="Benötigte Unterlagen"
-      description="Informationen zu den benötigten Unterlagen gemäß Geldwäschegesetz"
-      onSave={handleContinue}
+      title="Rechtliche Dokumente"
+      description="Bitte laden Sie die erforderlichen Dokumente für Ihre Rechtsform hoch."
+      onSave={handleSubmit}
+      disableNext={isSubmitting || uploadStatus === "uploading"}
+      isProcessing={uploadStatus === "uploading"}
+      status={formData.status}
     >
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* GwG Information Card - Always shown at the top */}
         <Card>
           <CardHeader>
@@ -245,7 +316,7 @@ export const RequiredDocumentsStep = () => {
         </Card>
 
         {/* Legal Form Specific Documents Section */}
-        {getLegalFormComponent()}
+        {renderLegalFormComponent()}
       </div>
     </StepLayout>
   );

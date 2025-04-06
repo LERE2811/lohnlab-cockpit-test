@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { IndustrySelect, PepCheckComponent } from "./components";
 
 interface OtherFormProps {
   onFieldsChange: (fields: any) => void;
@@ -36,6 +37,11 @@ export const OtherForm = ({
   const [additionalDocsFile, setAdditionalDocsFile] = useState<File | null>(
     null,
   );
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
+  const [documentState, setDocumentState] = useState({
+    hasPep: formData.hasPep || false,
+    pepDetails: formData.pepDetails || "",
+  });
 
   const handleFileUpload = (type: string, file: File | null) => {
     if (!file) return;
@@ -107,6 +113,24 @@ export const OtherForm = ({
     }
   };
 
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
+  // Update parent form data when PEP information changes
+  const handleDocumentStateChange = (newState: any) => {
+    setDocumentState(newState);
+    onFieldsChange({
+      ...formData,
+      hasPep: newState.hasPep,
+      pepDetails: newState.pepDetails,
+    });
+  };
+
   // Function to get title based on legal form
   const getFormTitle = () => {
     if (legalForm.includes("KG") || legalForm.includes("OHG")) {
@@ -155,6 +179,13 @@ export const OtherForm = ({
             wir Sie nach Einreichung.
           </AlertDescription>
         </Alert>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Existence Proof */}
@@ -380,6 +411,13 @@ export const OtherForm = ({
             )}
           </div>
         </div>
+
+        {/* PEP Check Component */}
+        <PepCheckComponent
+          documentState={documentState}
+          setDocumentState={handleDocumentStateChange}
+          className="mt-6"
+        />
       </CardContent>
     </Card>
   );

@@ -17,6 +17,7 @@ import {
   CircleDollarSign,
   CheckCircle,
   Lock,
+  FileCheck,
 } from "lucide-react";
 import {
   Tooltip,
@@ -57,58 +58,16 @@ export function StepSidebar() {
       interactive: true,
     },
     {
-      id: GivveOnboardingStep.READY_FOR_SIGNATURE,
-      name: "Bereit zur Unterschrift",
+      id: GivveOnboardingStep.SIGNED_FORMS,
+      name: "Unterschiebene Dokumente hochladen",
       icon: FileSignature,
       interactive: true,
     },
     {
-      id: GivveOnboardingStep.SIGNED_FORMS,
-      name: "Formulare unterschrieben",
-      icon: Check,
-      interactive: true,
-    },
-    {
-      id: GivveOnboardingStep.DOCUMENTS_SUBMITTED,
-      name: "Unterlagen bei givve eingereicht",
-      icon: Send,
-      interactive: false,
-    },
-    {
-      id: GivveOnboardingStep.VIDEO_IDENTIFICATION_LINK,
-      name: "Link zur Videoidentifizierung erhalten",
-      icon: Video,
-      interactive: false,
-    },
-    {
-      id: GivveOnboardingStep.CARD_DESIGN_VERIFICATION,
-      name: "Kartendesign zur Überprüfung",
-      icon: CreditCard,
-      interactive: false,
-    },
-    {
-      id: GivveOnboardingStep.VIDEO_IDENTIFICATION_COMPLETED,
-      name: "Videoidentifizierung abgeschlossen",
-      icon: UserCheck,
-      interactive: false,
-    },
-    {
-      id: GivveOnboardingStep.INITIAL_INVOICE_RECEIVED,
-      name: "Initiale Rechnung erhalten",
-      icon: Receipt,
-      interactive: false,
-    },
-    {
-      id: GivveOnboardingStep.INITIAL_INVOICE_PAID,
-      name: "Initiale Rechnung bezahlt",
-      icon: CircleDollarSign,
-      interactive: false,
-    },
-    {
       id: GivveOnboardingStep.COMPLETED,
-      name: "givve Onboarding beendet",
-      icon: CheckCircle,
-      interactive: false,
+      name: "Onboarding abschließen",
+      icon: FileCheck,
+      interactive: true,
     },
   ];
 

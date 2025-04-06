@@ -1,21 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Building2, Info } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface EinzelunternehmenFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
 export const EinzelunternehmenForm = ({
   onFieldsChange,
   formData,
+  legalForm,
 }: EinzelunternehmenFormProps) => {
+  console.log("EinzelunternehmenForm rendering with formData:", formData);
+
+  const [gewerbeanmeldungFile, setGewerbeanmeldungFile] = useState<File | null>(
+    null,
+  );
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     firstName: formData.firstName || "",
     lastName: formData.lastName || "",
@@ -30,6 +39,25 @@ export const EinzelunternehmenForm = ({
     pepDetails: formData.pepDetails || "",
   });
 
+  // Add an effect to update state when formData changes
+  useEffect(() => {
+    console.log("EinzelunternehmenForm formData changed:", formData);
+    setIndustry(formData.industry || "");
+    setDocumentState({
+      firstName: formData.firstName || "",
+      lastName: formData.lastName || "",
+      birthDate: formData.birthDate || "",
+      birthPlace: formData.birthPlace || "",
+      nationality: formData.nationality || "",
+      street: formData.street || "",
+      houseNumber: formData.houseNumber || "",
+      postalCode: formData.postalCode || "",
+      city: formData.city || "",
+      hasPep: formData.hasPep || false,
+      pepDetails: formData.pepDetails || "",
+    });
+  }, [formData]);
+
   const handleInputChange = (field: string, value: string) => {
     const updatedState = {
       ...documentState,
@@ -37,24 +65,38 @@ export const EinzelunternehmenForm = ({
     };
 
     setDocumentState(updatedState);
+
     onFieldsChange({
       ...formData,
-      ...updatedState,
+      [field]: value,
     });
   };
 
-  // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
+    console.log("handleDocumentStateChange called with:", newState);
+
+    // Ensure we're handling hasPep properly as a boolean
     const updatedState = {
       ...documentState,
-      hasPep: newState.hasPep,
-      pepDetails: newState.pepDetails,
+      hasPep: Boolean(newState.hasPep), // Force conversion to boolean
+      pepDetails: newState.pepDetails || "",
     };
 
     setDocumentState(updatedState);
+
     onFieldsChange({
       ...formData,
-      ...updatedState,
+      hasPep: Boolean(newState.hasPep), // Force conversion to boolean when passing to parent
+      pepDetails: newState.pepDetails || "",
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -80,6 +122,13 @@ export const EinzelunternehmenForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-4">
           <div className="mt-6 space-y-4">

@@ -3,20 +3,33 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { PepCheckComponent } from "./components";
+import {
+  Building2,
+  Upload,
+  Info,
+  FileText,
+  Trash2,
+  CreditCard,
+} from "lucide-react";
+import { PepCheckComponent, IndustrySelect } from "./components";
 
 interface KdoerFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
-export const KdoerForm = ({ onFieldsChange, formData }: KdoerFormProps) => {
+export const KdoerForm = ({
+  onFieldsChange,
+  formData,
+  legalForm,
+}: KdoerFormProps) => {
   const [satzungFile, setSatzungFile] = useState<File | null>(null);
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
   });
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
 
   const handleFileUpload = (file: File | null) => {
     if (!file) return;
@@ -43,6 +56,14 @@ export const KdoerForm = ({ onFieldsChange, formData }: KdoerFormProps) => {
       ...formData,
       hasPep: newState.hasPep,
       pepDetails: newState.pepDetails,
+    });
+  };
+
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
     });
   };
 
@@ -116,6 +137,13 @@ export const KdoerForm = ({ onFieldsChange, formData }: KdoerFormProps) => {
             documentState={documentState}
             setDocumentState={handleDocumentStateChange}
             className="mt-6"
+          />
+
+          {/* Industry Category Selection */}
+          <IndustrySelect
+            value={industry}
+            onChange={handleIndustryChange}
+            className="mb-6"
           />
         </div>
       </CardContent>

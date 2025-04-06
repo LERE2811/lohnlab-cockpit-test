@@ -5,16 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
-import { TransparenzregisterInfoDialog, PepCheckComponent } from "./components";
+import {
+  TransparenzregisterInfoDialog,
+  PepCheckComponent,
+  IndustrySelect,
+} from "./components";
 
 interface GmbHCoKGFormProps {
   onFieldsChange: (fields: any) => void;
   formData: any;
+  legalForm?: string;
 }
 
 export const GmbHCoKGForm = ({
   onFieldsChange,
   formData,
+  legalForm,
 }: GmbHCoKGFormProps) => {
   const [handelsregisterFile, setHandelsregisterFile] = useState<File | null>(
     null,
@@ -25,6 +31,7 @@ export const GmbHCoKGForm = ({
   ] = useState<File | null>(null);
   const [transparenzregisterFile, setTransparenzregisterFile] =
     useState<File | null>(null);
+  const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     hasPep: formData.hasPep || false,
     pepDetails: formData.pepDetails || "",
@@ -88,6 +95,14 @@ export const GmbHCoKGForm = ({
     }
   };
 
+  const handleIndustryChange = (value: string) => {
+    setIndustry(value);
+    onFieldsChange({
+      ...formData,
+      industry: value,
+    });
+  };
+
   // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
     setDocumentState(newState);
@@ -121,6 +136,13 @@ export const GmbHCoKGForm = ({
             </div>
           </div>
         </div>
+
+        {/* Industry Category Selection */}
+        <IndustrySelect
+          value={industry}
+          onChange={handleIndustryChange}
+          className="mb-6"
+        />
 
         <div className="space-y-6">
           {/* Handelsregisterauszug der KG */}
