@@ -235,7 +235,7 @@ export const SignedFormsStep = () => {
             </CardHeader>
             <CardContent>
               <FileUpload
-                folder={`givve_documents/${subsidiary?.id}/${GivveDocumentCategory.SIGNED_FORMS}/${GivveDocumentType.BESTELLFORMULAR}`}
+                folder={`${subsidiary?.id}/${GivveDocumentCategory.SIGNED_FORMS}/${GivveDocumentType.BESTELLFORMULAR}`}
                 subsidiaryId={subsidiary?.id || ""}
                 onUploadComplete={handleBestellformularUpload}
                 onRemove={handleBestellformularRemove}
@@ -245,6 +245,7 @@ export const SignedFormsStep = () => {
                 acceptedFileTypes=".pdf,.jpg,.jpeg,.png"
                 maxSizeMB={10}
                 label="Bestellformular hochladen"
+                bucket="givve_documents"
               />
             </CardContent>
           </Card>
@@ -261,7 +262,7 @@ export const SignedFormsStep = () => {
             </CardHeader>
             <CardContent>
               <FileUpload
-                folder={`givve_documents/${subsidiary?.id}/${GivveDocumentCategory.SIGNED_FORMS}/${GivveDocumentType.DOKUMENTATIONSBOGEN}`}
+                folder={`${subsidiary?.id}/${GivveDocumentCategory.SIGNED_FORMS}/${GivveDocumentType.DOKUMENTATIONSBOGEN}`}
                 subsidiaryId={subsidiary?.id || ""}
                 onUploadComplete={handleDokumentationsbogenUpload}
                 onRemove={handleDokumentationsbogenRemove}
@@ -271,6 +272,7 @@ export const SignedFormsStep = () => {
                 acceptedFileTypes=".pdf,.jpg,.jpeg,.png"
                 maxSizeMB={10}
                 label="Dokumentationsbogen hochladen"
+                bucket="givve_documents"
               />
             </CardContent>
           </Card>

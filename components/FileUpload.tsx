@@ -33,6 +33,7 @@ interface FileUploadProps {
   acceptedFileTypes?: string;
   maxSizeMB?: number;
   label?: string;
+  bucket?: string;
 }
 
 export const FileUpload = ({
@@ -46,6 +47,7 @@ export const FileUpload = ({
   acceptedFileTypes = "image/*,application/pdf",
   maxSizeMB = 10,
   label = "Upload File",
+  bucket = "onboarding_documents",
 }: FileUploadProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -113,7 +115,7 @@ export const FileUpload = ({
       const filePath = `${folder}/${subsidiaryId}_${Date.now()}.${fileExt}`;
 
       const { data, error } = await supabase.storage
-        .from("onboarding_documents")
+        .from(bucket)
         .upload(filePath, file, {
           cacheControl: "3600",
           upsert: false,
@@ -127,7 +129,7 @@ export const FileUpload = ({
 
       // Generate signed URL (valid for 1 hour)
       const { data: urlData, error: urlError } = await supabase.storage
-        .from("onboarding_documents")
+        .from(bucket)
         .createSignedUrl(filePath, 3600);
 
       if (urlError) {
@@ -170,7 +172,7 @@ export const FileUpload = ({
       try {
         // Delete file from Supabase
         const { error } = await supabase.storage
-          .from("onboarding_documents")
+          .from(bucket)
           .remove([filePath]);
 
         if (error) {
