@@ -1,6 +1,6 @@
 import { supabase } from "@/utils/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { File as CustomFile } from "@/types/file";
+import { File as CustomFile } from "@/shared/file";
 import { OnboardingFileMetadata } from "../types";
 
 interface FileUploadResult {
