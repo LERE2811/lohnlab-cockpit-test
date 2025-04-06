@@ -74,9 +74,10 @@ export class PdfFormFiller {
       // In Vercel, determine type by field name and behaviors
       const isDokumentationsbogen =
         fieldName.toLowerCase().includes("dokument") ||
-        this.templatePath?.toLowerCase().includes("dokumentationsbogen");
+        (this.templatePath?.toLowerCase().includes("dokumentationsbogen") ??
+          false);
 
-      if (this.isCheckboxField(fieldName, isDokumentationsbogen)) {
+      if (this.isCheckboxField(fieldName, isDokumentationsbogen) ?? false) {
         return "checkbox";
       } else if (this.isDropdownField(fieldName)) {
         return "dropdown";
