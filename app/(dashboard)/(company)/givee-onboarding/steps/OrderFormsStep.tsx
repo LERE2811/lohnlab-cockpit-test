@@ -38,6 +38,9 @@ import {
   GivveDocumentCategory,
   GivveDocumentType,
 } from "@/app/constants/givveDocumentTypes";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { PDFDocument } from "pdf-lib";
 
 export const OrderFormsStep = () => {
   const {
@@ -52,6 +55,8 @@ export const OrderFormsStep = () => {
   const [dokumentationsbogenDownloaded, setDokumentationsbogenDownloaded] =
     useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const [debugMode, setDebugMode] = useState(false);
+  const [clientFallback, setClientFallback] = useState(false);
 
   // Initialize form data from context
   useEffect(() => {
@@ -325,18 +330,21 @@ export const OrderFormsStep = () => {
       }
 
       // Use the server-side PDF filling API
-      const response = await fetch("/api/pdf/fill", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/pdf/fill${debugMode ? "?debug=true" : ""}${clientFallback ? "&client_fallback=true" : ""}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            formType,
+            templatePath,
+            formData: mappedData,
+            subsidiaryId: subsidiary.id,
+          }),
         },
-        body: JSON.stringify({
-          formType,
-          templatePath,
-          formData: mappedData,
-          subsidiaryId: subsidiary.id,
-        }),
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -345,7 +353,125 @@ export const OrderFormsStep = () => {
 
       const result = await response.json();
 
-      // Open the filled PDF in a new tab instead of downloading it
+      // Handle client-side fallback if server-side filling failed
+      if (result.success === false && result.templateUrl && clientFallback) {
+        try {
+          console.log(
+            "Server-side filling failed, attempting client-side fallback...",
+          );
+
+          // Fetch the template PDF
+          const templateResponse = await fetch(result.templateUrl);
+          const templateArrayBuffer = await templateResponse.arrayBuffer();
+
+          // Load the PDF
+          const pdfDoc = await PDFDocument.load(templateArrayBuffer);
+          const form = pdfDoc.getForm();
+
+          // Attempt to fill the form fields
+          for (const [key, value] of Object.entries(
+            result.fieldValues as Record<string, string>,
+          )) {
+            try {
+              const textField = form.getTextField(key);
+              textField.setText(value);
+            } catch (e) {
+              console.warn(`Client fallback: Failed to fill field "${key}"`);
+            }
+          }
+
+          // Save the filled PDF
+          const filledPdfBytes = await pdfDoc.save();
+
+          // Create a blob URL
+          const blob = new Blob([filledPdfBytes], { type: "application/pdf" });
+          const url = URL.createObjectURL(blob);
+
+          // Open the PDF in a new tab
+          window.open(url, "_blank");
+
+          console.log("Client-side fallback successful");
+
+          // Update the download status
+          if (formType === "bestellformular") {
+            setBestellFormularDownloaded(true);
+          } else if (formType === "dokumentationsbogen") {
+            setDokumentationsbogenDownloaded(true);
+          }
+
+          // Prepare updated form data with file metadata
+          const updatedOrderForms = {
+            ...onboardingData.documents?.orderForms,
+            [`${formType}Downloaded`]: true,
+            [`${formType}FilePath`]: result.filePath,
+            [`${formType}FileName`]: result.filename,
+            [`${formType}DownloadedAt`]: new Date().toISOString(),
+          };
+
+          const updatedDocuments = {
+            ...onboardingData.documents,
+            orderForms: updatedOrderForms,
+          };
+
+          // Always update local state to reflect the download
+          updateFormData({
+            documents: updatedDocuments,
+          });
+
+          // NEVER use saveProgress for downloads to prevent automatic step advancement
+          // Always do direct database updates instead
+          try {
+            // Update the givve_onboarding_progress record directly
+            const { data: progressData } = await supabase
+              .from("givve_onboarding_progress")
+              .select("id, form_data")
+              .eq("subsidiary_id", subsidiary.id)
+              .maybeSingle();
+
+            if (progressData?.id) {
+              // Update existing record's form_data without changing the step
+              const updatedFormData = {
+                ...progressData.form_data,
+                documents: updatedDocuments,
+              };
+
+              await supabase
+                .from("givve_onboarding_progress")
+                .update({
+                  form_data: updatedFormData,
+                  last_updated: new Date().toISOString(),
+                })
+                .eq("id", progressData.id);
+            }
+
+            // Update subsidiary table with forms downloaded status
+            await supabase
+              .from("subsidiaries")
+              .update({
+                givve_order_forms_downloaded: true,
+                givve_documentation_forms_downloaded: true,
+              })
+              .eq("id", subsidiary.id);
+          } catch (error) {
+            console.error("Error silently updating download status:", error);
+            // Don't show error to user, as the download itself was successful
+          }
+
+          toast({
+            title: "Erfolg",
+            description: "Formular wurde heruntergeladen.",
+          });
+
+          return;
+        } catch (clientError) {
+          console.error("Client-side fallback failed:", clientError);
+          throw new Error(
+            "Both server-side and client-side PDF filling failed",
+          );
+        }
+      }
+
+      // Open the filled PDF in a new tab (if server-side filling was successful)
       window.open(result.downloadUrl, "_blank");
 
       // Update the download status
@@ -571,6 +697,35 @@ export const OrderFormsStep = () => {
             unterschrieben werden.
           </AlertDescription>
         </Alert>
+
+        {/* Debug options - only visible in development */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="mb-4 space-y-2 rounded-md border p-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="debug-mode"
+                checked={debugMode}
+                onCheckedChange={setDebugMode}
+              />
+              <Label htmlFor="debug-mode">Debug-Modus</Label>
+              <p className="ml-auto text-xs text-muted-foreground">
+                Detaillierte Informationen über die PDF-Formularfelder
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="client-fallback"
+                checked={clientFallback}
+                onCheckedChange={setClientFallback}
+              />
+              <Label htmlFor="client-fallback">Client-Fallback</Label>
+              <p className="ml-auto text-xs text-muted-foreground">
+                Bei Server-Fehlern PDF im Browser ausfüllen
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>

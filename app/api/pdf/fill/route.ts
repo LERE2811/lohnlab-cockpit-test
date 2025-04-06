@@ -10,6 +10,19 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  // Log environment diagnostics
+  console.log("=== PDF FILL API ENVIRONMENT DIAGNOSTICS ===");
+  console.log(`Node.js version: ${process.version}`);
+  console.log(`Runtime: ${process.env.NEXT_RUNTIME || "nodejs"}`);
+  console.log(
+    `Memory limit: ${process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE || "unknown"}`,
+  );
+  console.log(`Vercel environment: ${process.env.VERCEL_ENV || "development"}`);
+  console.log(
+    `Region: ${process.env.VERCEL_REGION || process.env.AWS_REGION || "unknown"}`,
+  );
+  console.log("==========================================");
+
   try {
     // Create Supabase client
     const supabaseClient = await createClient();
@@ -91,14 +104,55 @@ export async function POST(request: NextRequest) {
 
     // Fill the PDF form
     try {
-      await fillPdfForm(pdfDoc, formData);
+      const isDebugMode = request.nextUrl.searchParams.has("debug");
+      await fillPdfForm(pdfDoc, formData, isDebugMode);
       console.log("PDF form filled successfully");
     } catch (fillError: any) {
-      console.error("Error filling PDF form:", fillError);
-      return NextResponse.json(
-        { error: "Failed to fill PDF form", details: fillError.message },
-        { status: 500 },
-      );
+      console.error("Error filling PDF form with standard method:", fillError);
+
+      // Try alternative filling method if standard fails
+      try {
+        console.log("Attempting fallback PDF filling method...");
+        await fallbackFillPdfForm(pdfDoc, formData);
+        console.log("PDF form filled successfully using fallback method");
+      } catch (fallbackError: any) {
+        console.error(
+          "Error filling PDF form with fallback method:",
+          fallbackError,
+        );
+
+        // If client requests debug mode and all server methods fail, return template for client-side filling
+        if (
+          request.nextUrl.searchParams.has("debug") &&
+          request.nextUrl.searchParams.has("client_fallback")
+        ) {
+          console.log(
+            "Both server methods failed, returning template PDF for client-side filling",
+          );
+
+          return NextResponse.json({
+            success: false,
+            error: "Server-side filling failed",
+            details: {
+              standard: fillError.message,
+              fallback: fallbackError.message,
+            },
+            templateUrl: fileData.signedUrl, // Return the template URL for client-side filling
+            fieldValues: formData, // Return the values that should be filled
+          });
+        }
+
+        return NextResponse.json(
+          {
+            error: "Failed to fill PDF form with all methods",
+            details: {
+              standard: fillError.message,
+              fallback: fallbackError.message,
+            },
+          },
+          { status: 500 },
+        );
+      }
     }
 
     // Save the filled PDF
@@ -143,7 +197,14 @@ export async function POST(request: NextRequest) {
     // Construct the complete file path according to the documented structure
     const filePath = `${subsidiaryId}/${GivveDocumentCategory.PREFILLED_FORMS}/${documentType}/${fileWithTimestamp}`;
 
-    console.log("Uploading filled PDF to:", filePath);
+    // Add query parameter to the download URL to indicate debugging mode for client
+    const isDebugMode = request.nextUrl.searchParams.has("debug");
+
+    console.log(
+      "Uploading filled PDF to:",
+      filePath,
+      isDebugMode ? "(DEBUG MODE)" : "",
+    );
 
     // Upload the filled PDF to the givve_documents bucket
     const { data: uploadData, error: uploadError } =
@@ -206,10 +267,17 @@ export async function POST(request: NextRequest) {
 async function fillPdfForm(
   pdfDoc: PDFDocument,
   fieldValues: Record<string, string>,
+  isDebugMode: boolean,
 ): Promise<void> {
   try {
     const form = pdfDoc.getForm();
     const fields = form.getFields();
+
+    // Log all form fields present in the PDF
+    console.log(`PDF form contains ${fields.length} fields:`);
+    fields.forEach((field) => {
+      console.log(`Field: ${field.getName()}, Type: ${field.constructor.name}`);
+    });
 
     // Map fields to their types
     const fieldMap = new Map(
@@ -232,47 +300,250 @@ async function fillPdfForm(
       }),
     );
 
+    // Log all field values we're trying to fill
+    console.log("Attempting to fill the following fields:");
+    Object.entries(fieldValues).forEach(([key, value]) => {
+      const fieldType = fieldMap.has(key)
+        ? fieldMap.get(key)
+        : "not found in form";
+      console.log(
+        `Will try to fill: ${key} (${fieldType}) with value: ${value}`,
+      );
+    });
+
+    // Count for statistics
+    let filledFields = 0;
+    let skippedFields = 0;
+    let errorFields = 0;
+
     // Fill in each field if it exists
     for (const [key, value] of Object.entries(fieldValues)) {
-      if (fieldMap.has(key)) {
-        const fieldType = fieldMap.get(key);
+      try {
+        if (fieldMap.has(key)) {
+          const fieldType = fieldMap.get(key);
+          console.log(`Processing field: ${key} (${fieldType}) = "${value}"`);
 
-        try {
-          if (fieldType === "text") {
-            // Handle text fields
-            const field = form.getTextField(key);
-            field.setText(value);
-          } else if (fieldType === "checkbox") {
-            // Handle checkbox fields
-            const field = form.getCheckBox(key);
-            if (
-              value.toLowerCase() === "yes" ||
-              value === "true" ||
-              value === "1"
-            ) {
-              field.check();
+          try {
+            if (fieldType === "text") {
+              // Handle text fields
+              const field = form.getTextField(key);
+              field.setText(value);
+              console.log(`✅ Successfully filled text field: ${key}`);
+              filledFields++;
+            } else if (fieldType === "checkbox") {
+              // Handle checkbox fields
+              const field = form.getCheckBox(key);
+              if (
+                value.toLowerCase() === "yes" ||
+                value === "true" ||
+                value === "1"
+              ) {
+                field.check();
+                console.log(`✅ Successfully checked checkbox: ${key}`);
+              } else {
+                field.uncheck();
+                console.log(`✅ Successfully unchecked checkbox: ${key}`);
+              }
+              filledFields++;
+            } else if (fieldType === "radio") {
+              // Handle radio button groups
+              const field = form.getRadioGroup(key);
+              field.select(value);
+              console.log(
+                `✅ Successfully selected radio option: ${key} = ${value}`,
+              );
+              filledFields++;
+            } else if (fieldType === "dropdown" || fieldType === "option") {
+              // Handle dropdown and option lists
+              const field = form.getDropdown(key);
+              field.select(value);
+              console.log(
+                `✅ Successfully selected dropdown option: ${key} = ${value}`,
+              );
+              filledFields++;
             } else {
-              field.uncheck();
+              console.log(
+                `⚠️ Skipping unknown field type: ${key} (${fieldType})`,
+              );
+              skippedFields++;
             }
-          } else if (fieldType === "radio") {
-            // Handle radio button groups
-            const field = form.getRadioGroup(key);
-            field.select(value);
-          } else if (fieldType === "dropdown" || fieldType === "option") {
-            // Handle dropdown and option lists
-            const field = form.getDropdown(key);
-            field.select(value);
+          } catch (fieldError: any) {
+            console.warn(
+              `❌ Error filling field "${key}" of type "${fieldType}":`,
+              fieldError.message || fieldError,
+            );
+            errorFields++;
           }
-        } catch (fieldError) {
-          console.warn(
-            `Error filling field "${key}" of type "${fieldType}":`,
-            fieldError,
-          );
+        } else {
+          console.log(`⚠️ Field not found in PDF: ${key}`);
+          skippedFields++;
+        }
+      } catch (individualFieldError: any) {
+        console.error(
+          `❌ Unexpected error processing field ${key}:`,
+          individualFieldError.message || individualFieldError,
+        );
+        errorFields++;
+      }
+    }
+
+    // Flatten form to make it non-editable - uncomment if needed
+    // console.log("Flattening form...");
+    // form.flatten();
+    // console.log("Form flattened successfully");
+
+    console.log(
+      `Form filling summary: ${filledFields} fields filled, ${skippedFields} fields skipped, ${errorFields} errors`,
+    );
+  } catch (error: any) {
+    console.error("Error in fillPdfForm function:", error.message || error);
+    throw new Error(`Failed to fill PDF form: ${error.message || error}`);
+  }
+}
+
+// Fallback PDF Filling Helper Function
+async function fallbackFillPdfForm(
+  pdfDoc: PDFDocument,
+  fieldValues: Record<string, string>,
+): Promise<void> {
+  try {
+    console.log("Using fallback PDF filling method");
+    const form = pdfDoc.getForm();
+
+    // Get all fields directly from the form
+    const fields = form.getFields();
+    console.log(`Fallback: Found ${fields.length} fields in the PDF`);
+
+    // Try all possible fields without relying on type checking
+    let filledCount = 0;
+    let errorCount = 0;
+
+    // Method 1: Direct access by field name
+    console.log("Fallback Method 1: Direct access by field name");
+    for (const [key, value] of Object.entries(fieldValues)) {
+      try {
+        // Try to get the field by name and set text regardless of type
+        const field = form.getField(key);
+
+        if (field) {
+          console.log(`Fallback: Found field "${key}", attempting to fill`);
+
+          // Just try setText - it might work for most fields
+          if (typeof (field as any).setText === "function") {
+            (field as any).setText(value);
+            console.log(`Fallback: Successfully set text for field "${key}"`);
+            filledCount++;
+          }
+          // If setText doesn't exist or work, try specific field types
+          else {
+            console.log(
+              `Fallback: setText not available for "${key}", trying specific methods`,
+            );
+
+            // Try different field types
+            try {
+              const textField = form.getTextField(key);
+              textField.setText(value);
+              console.log(`Fallback: Successfully set text field "${key}"`);
+              filledCount++;
+            } catch (e) {
+              try {
+                const checkBox = form.getCheckBox(key);
+                if (
+                  value.toLowerCase() === "yes" ||
+                  value === "true" ||
+                  value === "1"
+                ) {
+                  checkBox.check();
+                } else {
+                  checkBox.uncheck();
+                }
+                console.log(`Fallback: Successfully set checkbox "${key}"`);
+                filledCount++;
+              } catch (e) {
+                try {
+                  const radioGroup = form.getRadioGroup(key);
+                  radioGroup.select(value);
+                  console.log(
+                    `Fallback: Successfully set radio group "${key}"`,
+                  );
+                  filledCount++;
+                } catch (e) {
+                  try {
+                    const dropdown = form.getDropdown(key);
+                    dropdown.select(value);
+                    console.log(`Fallback: Successfully set dropdown "${key}"`);
+                    filledCount++;
+                  } catch (e) {
+                    console.log(
+                      `Fallback: Could not set field "${key}" with any method`,
+                    );
+                    errorCount++;
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          console.log(`Fallback: Field "${key}" not found in form`);
+        }
+      } catch (error: any) {
+        console.error(
+          `Fallback: Error setting field "${key}":`,
+          error.message || error,
+        );
+        errorCount++;
+      }
+    }
+
+    // Method 2: Try to find fields by partial name match
+    console.log("Fallback Method 2: Partial name matching");
+    const fieldNames = fields.map((f) => f.getName());
+
+    for (const [key, value] of Object.entries(fieldValues)) {
+      // Skip if already filled successfully
+      if (fieldNames.includes(key)) continue;
+
+      // Look for partial matches
+      const possibleMatches = fieldNames.filter(
+        (name) =>
+          name.toLowerCase().includes(key.toLowerCase()) ||
+          key.toLowerCase().includes(name.toLowerCase()),
+      );
+
+      if (possibleMatches.length > 0) {
+        console.log(
+          `Fallback: Found ${possibleMatches.length} potential matches for "${key}"`,
+        );
+
+        // Try each potential match
+        for (const matchName of possibleMatches) {
+          try {
+            const field = form.getField(matchName);
+            if (typeof (field as any).setText === "function") {
+              (field as any).setText(value);
+              console.log(
+                `Fallback: Successfully set text for partial match "${matchName}" (for "${key}")`,
+              );
+              filledCount++;
+              break; // Stop after first successful match
+            }
+          } catch (error) {
+            // Continue to next match
+          }
         }
       }
     }
-  } catch (error) {
-    console.error("Error filling PDF form:", error);
-    throw new Error("Failed to fill PDF form");
+
+    console.log(
+      `Fallback filling summary: ${filledCount} fields filled, ${errorCount} errors`,
+    );
+
+    if (filledCount === 0) {
+      throw new Error("Fallback method couldn't fill any fields");
+    }
+  } catch (error: any) {
+    console.error("Error in fallbackFillPdfForm:", error.message || error);
+    throw new Error(`Fallback PDF filling failed: ${error.message || error}`);
   }
 }
