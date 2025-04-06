@@ -105,7 +105,25 @@ export async function POST(request: NextRequest) {
     // Fill the PDF form
     try {
       const isDebugMode = request.nextUrl.searchParams.has("debug");
-      await fillPdfForm(pdfDoc, formData, isDebugMode);
+
+      // Special handling for Dokumentationsbogen
+      if (
+        formType === "dokumentationsbogen" &&
+        (templatePath.includes("Dokumentationsbogen") ||
+          templatePath.includes("dokumentationsbogen"))
+      ) {
+        console.log("Using specialized Dokumentationsbogen filling approach");
+        await fillDokumentationsbogen(
+          pdfDoc,
+          formData,
+          isDebugMode,
+          templatePath,
+        );
+      } else {
+        // Regular PDF filling for other forms
+        await fillPdfForm(pdfDoc, formData, isDebugMode, templatePath);
+      }
+
       console.log("PDF form filled successfully");
     } catch (fillError: any) {
       console.error("Error filling PDF form with standard method:", fillError);
@@ -268,6 +286,7 @@ async function fillPdfForm(
   pdfDoc: PDFDocument,
   fieldValues: Record<string, string>,
   isDebugMode: boolean,
+  templatePath?: string,
 ): Promise<void> {
   try {
     const form = pdfDoc.getForm();
@@ -294,7 +313,53 @@ async function fillPdfForm(
       if (isVercelEnvironment) {
         // In Vercel, we'll try to determine type by field name and behaviors
         // Note: This is a simplistic approach and may need refinement
+
+        // For Dokumentationsbogen, many fields are actually checkboxes
+        const isDokumentationsbogen =
+          fieldName.toLowerCase().includes("dokument") ||
+          templatePath?.toLowerCase().includes("dokumentationsbogen");
+
         if (
+          isDokumentationsbogen &&
+          // Business type checkboxes in Dokumentationsbogen
+          (fieldName.includes("Land und Forstwirtschaft") ||
+            fieldName.includes("Bergbau") ||
+            fieldName.includes("Verarbeitendes Gewerbe") ||
+            fieldName.includes("Energieversorgung") ||
+            fieldName.includes("Wasserversorgung") ||
+            fieldName.includes("Baugewerbe") ||
+            fieldName.includes("Handel") ||
+            fieldName.includes("Verkehr") ||
+            fieldName.includes("Gastgewerbe") ||
+            fieldName.includes("Information") ||
+            fieldName.includes("Erbringung von Finanz") ||
+            fieldName.includes("Grundstücks") ||
+            fieldName.includes("Erbringung von freiberuflichen") ||
+            fieldName.includes("Erbringung von sonstigen") ||
+            fieldName.includes("Öffentliche Verwaltung") ||
+            fieldName.includes("Erziehung") ||
+            fieldName.includes("Gesundheits") ||
+            fieldName.includes("Kunst") ||
+            fieldName.includes("Private Haushalte") ||
+            fieldName.includes("Exterritoriale") ||
+            // Legal form checkboxes
+            fieldName.includes(
+              "Der Vertragspartner führt ein Einzelunternehmen",
+            ) ||
+            fieldName.includes(
+              "Der Vertragspartner führt einen freien Beruf aus",
+            ) ||
+            fieldName.includes(
+              "Der Vertragspartner ist ein eingetragener Kaufmann",
+            ) ||
+            // Purpose checkboxes
+            fieldName.includes("Bereitstellung eines Sachbezugs") ||
+            fieldName.includes("bis zu 50 EUR pro Monat") ||
+            fieldName.includes("bis zu 60 EUR je persönlichen") ||
+            fieldName.includes("Andere Bitte angeben"))
+        ) {
+          fieldType = "checkbox";
+        } else if (
           fieldName.toLowerCase().includes("check") ||
           fieldName === "givve StandardCard" ||
           fieldName === "givve LogoCard" ||
@@ -352,6 +417,18 @@ async function fillPdfForm(
     let filledFields = 0;
     let skippedFields = 0;
     let errorFields = 0;
+
+    // Check if this is a Dokumentationsbogen
+    const isDokumentationsbogen =
+      fields.some(
+        (field) =>
+          field.getName().toLowerCase().includes("dokument") ||
+          field.getName().toLowerCase().includes("geldwäsche"),
+      ) || templatePath?.toLowerCase().includes("dokumentationsbogen");
+
+    if (isDokumentationsbogen) {
+      console.log("Detected Dokumentationsbogen form in primary method");
+    }
 
     // Fill in each field if it exists
     for (const [key, value] of Object.entries(fieldValues)) {
@@ -421,6 +498,94 @@ async function fillPdfForm(
           individualFieldError.message || individualFieldError,
         );
         errorFields++;
+      }
+    }
+
+    // For Dokumentationsbogen, add special handling for problematic fields
+    if (
+      isDokumentationsbogen &&
+      isVercelEnvironment &&
+      filledFields < Object.keys(fieldValues).length / 2
+    ) {
+      console.log("Adding special handling for Dokumentationsbogen fields");
+
+      // Get all field names
+      const fieldNames = fields.map((f) => f.getName());
+
+      // Handle checkboxes for business types and legal form fields
+      const businessTypeFields = [
+        "Land und Forstwirtschaft Fischerei",
+        "Bergbau und Gewinnung von Steinen und Erden",
+        "Verarbeitendes Gewerbe",
+        "Energieversorgung",
+        "Wasserversorgung Abwasser und Abfallentsorgung",
+        "Baugewerbe",
+        "Handel Instandhaltung und Reparatur von",
+        "Verkehr und Lagerei",
+        "Gastgewerbe",
+        "Information und Kommunikation",
+        "Erbringung von Finanz und Versicherungs",
+        "Grundstücks und Wohnungswesen",
+        "Erbringung von freiberuflichen wissenschaftlichen",
+        "Erbringung von sonstigen wirtschaftlichen",
+        "Öffentliche Verwaltung Verteidigung",
+        "Erziehung und Unterricht",
+        "Gesundheits und Sozialwesen",
+        "Kunst Unterhaltung und Erholung",
+        "Erbringung von sonstigen Dienstleistungen",
+        "Private Haushalte mit Hauspersonal Herstellung",
+        "Exterritoriale Organisationen und Körperschaften",
+      ];
+
+      const legalFormFields = [
+        "Der Vertragspartner führt ein Einzelunternehmen",
+        "Der Vertragspartner führt einen freien Beruf aus",
+        "Der Vertragspartner ist ein eingetragener Kaufmann eK",
+      ];
+
+      const purposeFields = [
+        "Bereitstellung eines Sachbezugs für voraussichtlich",
+        "bis zu 50 EUR pro Monat nach  8 Abs 2 Satz 11 EStG steuerfreier Sachbezug",
+        "bis zu 60 EUR je persönlichen Anlass nach R 196 Abs 1 LStR Aufmerksamkeiten",
+        "Andere Bitte angeben",
+      ];
+
+      const allCheckboxFields = [
+        ...businessTypeFields,
+        ...legalFormFields,
+        ...purposeFields,
+      ];
+
+      for (const checkboxField of allCheckboxFields) {
+        if (fieldNames.includes(checkboxField) && fieldValues[checkboxField]) {
+          try {
+            const field = form.getField(checkboxField);
+            const isYesValue =
+              fieldValues[checkboxField].toLowerCase() === "yes" ||
+              fieldValues[checkboxField] === "true" ||
+              fieldValues[checkboxField] === "1";
+
+            if (isYesValue) {
+              try {
+                // Try both methods
+                try {
+                  (field as any).check();
+                } catch (e) {
+                  // If check fails, try setValue
+                  (field as any).setValue("Yes");
+                }
+                console.log(
+                  `✅ Special handler: Checked field ${checkboxField}`,
+                );
+                filledFields++;
+              } catch (e) {
+                console.error(`Failed to check field ${checkboxField}:`, e);
+              }
+            }
+          } catch (e) {
+            // Field not found or not accessible
+          }
+        }
       }
     }
 
@@ -572,7 +737,11 @@ async function fallbackFillPdfForm(
         name.toLowerCase().includes("dokument") ||
         name.toLowerCase().includes("geldwäsche") ||
         name.toLowerCase().includes("wirtschaftlich") ||
-        name.toLowerCase().includes("identifizierung"),
+        name.toLowerCase().includes("identifizierung") ||
+        // Add common Dokumentationsbogen fields
+        name.includes("Land und Forstwirtschaft") ||
+        name.includes("Bereitstellung eines Sachbezugs") ||
+        name.includes("Der Vertragspartner führt"),
     );
 
     if (isDokumentationsbogen) {
@@ -580,72 +749,83 @@ async function fallbackFillPdfForm(
         "Detected Dokumentationsbogen form, using specialized approach",
       );
 
-      // Dokumentationsbogen often has lots of checkboxes for "ja/nein" options
-      const checkboxCandidates = fieldNames.filter(
-        (name) =>
-          name.toLowerCase().includes("ja") ||
-          name.toLowerCase().includes("nein") ||
-          name.toLowerCase().includes("yes") ||
-          name.toLowerCase().includes("no"),
-      );
+      // Enhanced list of potential checkbox candidates for Dokumentationsbogen
+      const checkboxCandidates = [
+        ...fieldNames.filter(
+          (name) =>
+            name.toLowerCase().includes("ja") ||
+            name.toLowerCase().includes("nein") ||
+            name.toLowerCase().includes("yes") ||
+            name.toLowerCase().includes("no"),
+        ),
+        // Add business types as checkbox candidates
+        ...fieldNames.filter(
+          (name) =>
+            name.includes("Land und Forstwirtschaft") ||
+            name.includes("Bergbau") ||
+            name.includes("Verarbeitendes Gewerbe") ||
+            name.includes("Energieversorgung") ||
+            name.includes("Wasserversorgung") ||
+            name.includes("Baugewerbe") ||
+            name.includes("Handel") ||
+            name.includes("Verkehr") ||
+            name.includes("Gastgewerbe") ||
+            name.includes("Information") ||
+            name.includes("Erbringung") ||
+            name.includes("Grundstücks") ||
+            name.includes("Öffentliche") ||
+            name.includes("Erziehung") ||
+            name.includes("Gesundheits") ||
+            name.includes("Kunst") ||
+            name.includes("Private") ||
+            name.includes("Exterritoriale"),
+        ),
+        // Add legal form checkboxes
+        ...fieldNames.filter(
+          (name) =>
+            name.includes("Der Vertragspartner führt") ||
+            name.includes("Der Vertragspartner ist"),
+        ),
+        // Add purpose checkboxes
+        ...fieldNames.filter(
+          (name) =>
+            name.includes("Bereitstellung eines Sachbezugs") ||
+            name.includes("bis zu 50 EUR") ||
+            name.includes("bis zu 60 EUR") ||
+            name.includes("Andere Bitte angeben"),
+        ),
+      ];
 
       console.log(
         `Found ${checkboxCandidates.length} potential checkbox fields`,
       );
 
-      // Handle yes/no fields specifically
+      // First, handle all explicitly specified checkboxes by field name
       for (const [key, value] of Object.entries(fieldValues)) {
-        // Skip empty values
-        if (!value) continue;
+        if (checkboxCandidates.includes(key)) {
+          try {
+            const field = form.getField(key);
+            const isYesValue =
+              value.toLowerCase() === "yes" ||
+              value.toLowerCase() === "ja" ||
+              value.toLowerCase() === "true" ||
+              value === "1";
 
-        const isYesValue =
-          value.toLowerCase() === "yes" ||
-          value.toLowerCase() === "ja" ||
-          value.toLowerCase() === "true" ||
-          value === "1";
-
-        // Look for matching checkboxes
-        const matchingCheckboxes = checkboxCandidates.filter((name) => {
-          // If value is "yes", look for "ja" or "yes" fields that match the key
-          if (isYesValue) {
-            return (
-              (name.toLowerCase().includes("ja") ||
-                name.toLowerCase().includes("yes")) &&
-              name.toLowerCase().includes(key.toLowerCase())
-            );
-          }
-          // If value is "no", look for "nein" or "no" fields that match the key
-          else {
-            return (
-              (name.toLowerCase().includes("nein") ||
-                name.toLowerCase().includes("no")) &&
-              name.toLowerCase().includes(key.toLowerCase())
-            );
-          }
-        });
-
-        if (matchingCheckboxes.length > 0) {
-          console.log(
-            `Found ${matchingCheckboxes.length} matching checkboxes for field ${key}`,
-          );
-
-          // Try to check the appropriate boxes
-          for (const checkboxName of matchingCheckboxes) {
             try {
-              const field = form.getField(checkboxName);
-              try {
+              if (isYesValue) {
                 (field as any).check();
-                console.log(
-                  `✅ Fallback Dokumentationsbogen: Checked ${checkboxName} for field ${key}=${value}`,
-                );
-                filledCount++;
-              } catch (e) {
-                // Not a checkbox or failed
-                console.log(`Failed to check field ${checkboxName}:`, e);
+                console.log(`✅ Fallback: Checked checkbox ${key}`);
+              } else {
+                (field as any).uncheck();
+                console.log(`✅ Fallback: Unchecked checkbox ${key}`);
               }
+              filledCount++;
+              continue; // Skip to next field
             } catch (e) {
-              // Ignore field errors
+              // Not a checkbox or failed, continue with other methods
             }
+          } catch (e) {
+            // Field not found, continue
           }
         }
       }
@@ -779,5 +959,238 @@ async function fallbackFillPdfForm(
   } catch (error: any) {
     console.error("Error in fallbackFillPdfForm:", error.message || error);
     throw new Error(`Fallback PDF filling failed: ${error.message || error}`);
+  }
+}
+
+// Add specialized Dokumentationsbogen filling function
+async function fillDokumentationsbogen(
+  pdfDoc: PDFDocument,
+  fieldValues: Record<string, string>,
+  isDebugMode: boolean,
+  templatePath?: string,
+): Promise<void> {
+  try {
+    console.log("Using dedicated Dokumentationsbogen filling method");
+    const form = pdfDoc.getForm();
+    const fields = form.getFields();
+
+    // Log all fields
+    console.log(`Dokumentationsbogen form contains ${fields.length} fields`);
+    fields.forEach((field) => {
+      console.log(`Field: ${field.getName()}`);
+    });
+
+    // Fill text fields first - these usually work fine
+    const textFields = [
+      "Vornamen und Nachname",
+      "Geburtsdatum",
+      "Geburtsort",
+      "Staatsangehörigkeit",
+      "Wohnanschrift",
+      "EMail Adresse",
+      "Registernummer nur bei eK",
+      "Person, Amt",
+      "Mitarbeiter",
+      "Andere",
+      "Ort, Datum, Unterschrift",
+    ];
+
+    // Fill text fields
+    for (const fieldName of textFields) {
+      if (fieldValues[fieldName]) {
+        try {
+          const field = form.getTextField(fieldName);
+          field.setText(fieldValues[fieldName]);
+          console.log(
+            `✅ Set text field: ${fieldName} = ${fieldValues[fieldName]}`,
+          );
+        } catch (e) {
+          console.log(`❌ Failed to set text field: ${fieldName}`);
+        }
+      }
+    }
+
+    // Handle standard checkboxes
+    const checkboxFields = [
+      "Nein",
+      "Ja folgende Person folgendes Amt",
+      "bis zu 10000 EUR pro Jahr nach  37b EStG pauschalversteurter Sachbezug",
+    ];
+
+    // Fill standard checkboxes
+    for (const fieldName of checkboxFields) {
+      if (fieldValues[fieldName]) {
+        try {
+          const field = form.getCheckBox(fieldName);
+          const isYesValue =
+            fieldValues[fieldName].toLowerCase() === "yes" ||
+            fieldValues[fieldName] === "true" ||
+            fieldValues[fieldName] === "1";
+
+          if (isYesValue) {
+            field.check();
+            console.log(`✅ Checked checkbox: ${fieldName}`);
+          } else {
+            field.uncheck();
+            console.log(`✅ Unchecked checkbox: ${fieldName}`);
+          }
+        } catch (e) {
+          console.log(`❌ Failed to set checkbox: ${fieldName}`);
+        }
+      }
+    }
+
+    // Handle special fields by direct field approach
+    const specialFields = [
+      // Legal form
+      "Der Vertragspartner führt ein Einzelunternehmen",
+      "Der Vertragspartner führt einen freien Beruf aus",
+      "Der Vertragspartner ist ein eingetragener Kaufmann eK",
+      // Business types
+      "Land und Forstwirtschaft Fischerei",
+      "Bergbau und Gewinnung von Steinen und Erden",
+      "Verarbeitendes Gewerbe",
+      "Energieversorgung",
+      "Wasserversorgung Abwasser und Abfallentsorgung",
+      "Baugewerbe",
+      "Handel Instandhaltung und Reparatur von",
+      "Verkehr und Lagerei",
+      "Gastgewerbe",
+      "Information und Kommunikation",
+      "Erbringung von Finanz und Versicherungs",
+      "Grundstücks und Wohnungswesen",
+      "Erbringung von freiberuflichen wissenschaftlichen",
+      "Erbringung von sonstigen wirtschaftlichen",
+      "Öffentliche Verwaltung Verteidigung",
+      "Erziehung und Unterricht",
+      "Gesundheits und Sozialwesen",
+      "Kunst Unterhaltung und Erholung",
+      "Erbringung von sonstigen Dienstleistungen",
+      "Private Haushalte mit Hauspersonal Herstellung",
+      "Exterritoriale Organisationen und Körperschaften",
+      // Purpose fields
+      "Bereitstellung eines Sachbezugs für voraussichtlich",
+      "bis zu 50 EUR pro Monat nach  8 Abs 2 Satz 11 EStG steuerfreier Sachbezug",
+      "bis zu 60 EUR je persönlichen Anlass nach R 196 Abs 1 LStR Aufmerksamkeiten",
+      "Andere Bitte angeben",
+    ];
+
+    // Try multiple methods for special fields
+    for (const fieldName of specialFields) {
+      if (fieldValues[fieldName]) {
+        try {
+          const field = form.getField(fieldName);
+          const isYesValue =
+            fieldValues[fieldName].toLowerCase() === "yes" ||
+            fieldValues[fieldName] === "true" ||
+            fieldValues[fieldName] === "1";
+
+          if (isYesValue) {
+            // Try multiple methods for compatibility with different PDF libraries
+            try {
+              // Method 1: Check as checkbox
+              try {
+                (field as any).check();
+                console.log(`✅ Method 1: Checked ${fieldName}`);
+                continue;
+              } catch (e) {
+                // Not a checkbox, try next method
+              }
+
+              // Method 2: Set as text
+              try {
+                (field as any).setText("Yes");
+                console.log(`✅ Method 2: Set text for ${fieldName}`);
+                continue;
+              } catch (e) {
+                // Not a text field, try next method
+              }
+
+              // Method 3: setValue for button fields
+              try {
+                (field as any).setValue("Yes");
+                console.log(`✅ Method 3: Set value for ${fieldName}`);
+                continue;
+              } catch (e) {
+                // Not a button field, try next method
+              }
+
+              // Method 4: Select for radio groups
+              try {
+                (field as any).select("Yes");
+                console.log(`✅ Method 4: Selected for ${fieldName}`);
+                continue;
+              } catch (e) {
+                // Failed all methods
+                console.log(`❌ All methods failed for ${fieldName}`);
+              }
+            } catch (eMethod) {
+              // General method error
+              console.log(`❌ Method error for ${fieldName}: ${eMethod}`);
+            }
+          }
+        } catch (e) {
+          // Field not found or not accessible
+          console.log(`❌ Field not found: ${fieldName}`);
+        }
+      }
+    }
+
+    // If nothing was filled, throw an error to try fallback method
+    let filledFieldsCount = 0;
+
+    // Try to check filled fields in a more compatible way
+    for (const field of form.getFields()) {
+      try {
+        // Try different methods to see if a field has value
+        try {
+          // For text fields
+          const textField = field as any;
+          if (textField.getText && textField.getText() !== "") {
+            filledFieldsCount++;
+            continue;
+          }
+        } catch (e) {
+          // Not a text field
+        }
+
+        try {
+          // For checkboxes
+          const checkboxField = field as any;
+          if (checkboxField.isChecked && checkboxField.isChecked()) {
+            filledFieldsCount++;
+            continue;
+          }
+        } catch (e) {
+          // Not a checkbox
+        }
+
+        try {
+          // For dropdown/choice fields
+          const choiceField = field as any;
+          if (choiceField.getSelected && choiceField.getSelected().length > 0) {
+            filledFieldsCount++;
+            continue;
+          }
+        } catch (e) {
+          // Not a choice field
+        }
+      } catch (e) {
+        // Skip fields that can't be checked
+      }
+    }
+
+    console.log(
+      `Filled approximately ${filledFieldsCount} fields in Dokumentationsbogen`,
+    );
+
+    if (filledFieldsCount === 0) {
+      throw new Error("Could not fill any fields in Dokumentationsbogen");
+    }
+  } catch (error: any) {
+    console.error("Error in fillDokumentationsbogen:", error.message || error);
+    throw new Error(
+      `Dokumentationsbogen filling failed: ${error.message || error}`,
+    );
   }
 }
