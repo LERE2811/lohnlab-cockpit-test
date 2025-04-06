@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { GivveCardType } from "../context/givve-onboarding-context";
 
 export interface OnboardingFileMetadata {
   name: string;

@@ -26,16 +26,18 @@ import { useState, useEffect } from "react";
 import { Separator } from "@/components/ui/separator";
 import {
   loadPdfFromUrl,
-  fillPdfForm,
-  savePdfAsBlob,
+  analyzePdfForm,
   mapCompanyDataToBestellformular,
   mapCompanyDataToDokumentationsbogen,
-  analyzePdfForm,
 } from "@/lib/pdf/formFiller";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/utils/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GivveOnboardingStep } from "../context/givve-onboarding-context";
+import {
+  GivveDocumentCategory,
+  GivveDocumentType,
+} from "@/app/constants/givveDocumentTypes";
 
 export const OrderFormsStep = () => {
   const {
@@ -204,28 +206,6 @@ export const OrderFormsStep = () => {
     return formData;
   };
 
-  const generateFileLink = async (filePath: string): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("givve_documents")
-        .createSignedUrl(filePath, 3600);
-
-      if (error) {
-        throw error;
-      }
-
-      return data?.signedUrl || null;
-    } catch (error) {
-      console.error("Error generating file link:", error);
-      toast({
-        title: "Fehler",
-        description: "Fehler beim Generieren des Download-Links.",
-        variant: "destructive",
-      });
-      return null;
-    }
-  };
-
   const handleDownload = async (
     formType: "bestellformular" | "dokumentationsbogen",
   ) => {
@@ -278,66 +258,56 @@ export const OrderFormsStep = () => {
       console.log("Full subsidiary data:", fullSubsidiaryData);
       console.log("Contacts data:", contactsData);
 
-      let filePath = "";
+      let templatePath = "";
 
       if (formType === "bestellformular") {
-        filePath = "templates/Bestellformular.pdf";
+        templatePath = "templates/Bestellformular.pdf";
       } else if (formType === "dokumentationsbogen") {
         // Use the appropriate Dokumentationsbogen based on legal form
         const docType = getDocumentType();
         switch (docType) {
           case "GmbH":
           case "UG":
-            filePath = "templates/Dokumentationsbogen_JP_GmbH_UG.pdf";
+            templatePath = "templates/Dokumentationsbogen_JP_GmbH_UG.pdf";
             break;
           case "GbR":
-            filePath = "templates/Dokumentationsbogen_GbR.pdf";
+            templatePath = "templates/Dokumentationsbogen_GbR.pdf";
             break;
           case "AG":
-            filePath = "templates/Dokumentationsbogen_JP_AG.pdf";
+            templatePath = "templates/Dokumentationsbogen_JP_AG.pdf";
             break;
           case "KG_OHG":
-            filePath = "templates/Dokumentationsbogen_JP_KG_OHG.pdf";
+            templatePath = "templates/Dokumentationsbogen_JP_KG_OHG.pdf";
             break;
           case "KdöR":
-            filePath = "templates/Dokumentationsbogen_JP_KdöR.pdf";
+            templatePath = "templates/Dokumentationsbogen_JP_KdöR.pdf";
             break;
           case "PartG":
           case "PartG mbB":
-            filePath = "templates/Dokumentationsbogen_JP_PartG__PartG_mbB.pdf";
+            templatePath =
+              "templates/Dokumentationsbogen_JP_PartG__PartG_mbB.pdf";
             break;
           case "EINZELUNTERNEHMEN":
           case "FREIBERUFLER":
           case "E.K.":
-            filePath = "templates/Dokumentationsbogen_NP.pdf";
+            templatePath = "templates/Dokumentationsbogen_NP.pdf";
             break;
           case "E.V.":
           case "EG":
-            filePath = "templates/Dokumentationsbogen_JP_V_G.pdf";
+            templatePath = "templates/Dokumentationsbogen_JP_V_G.pdf";
             break;
           case "GmbH & Co. KG":
-            filePath = "templates/UPgivve_Dokumentationsbogen_JP_GmbH_CoKG.pdf";
+            templatePath =
+              "templates/UPgivve_Dokumentationsbogen_JP_GmbH_CoKG.pdf";
             break;
           // Default case for any other legal forms
           default:
-            filePath = "templates/Dokumentationsbogen_JP_allgemein.pdf";
+            templatePath = "templates/Dokumentationsbogen_JP_allgemein.pdf";
         }
-      }
-
-      const downloadUrl = await generateFileLink(filePath);
-
-      if (!downloadUrl) {
-        throw new Error("Fehler beim Generieren des Download-Links");
       }
 
       // Compile form data
       const formData = compileFormData(fullSubsidiaryData, contactsData || []);
-
-      // Debug log for form data
-      console.log("Form data for filling:", formData);
-
-      // Load the PDF from the URL
-      const pdfDoc = await loadPdfFromUrl(downloadUrl);
 
       // Map the data based on form type
       let mappedData;
@@ -354,19 +324,29 @@ export const OrderFormsStep = () => {
         throw new Error("Ungültiger Formulartyp");
       }
 
-      // Fill the PDF form
-      const filledPdfDoc = await fillPdfForm(pdfDoc, mappedData);
+      // Use the server-side PDF filling API
+      const response = await fetch("/api/pdf/fill", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          formType,
+          templatePath,
+          formData: mappedData,
+          subsidiaryId: subsidiary.id,
+        }),
+      });
 
-      // Save the filled PDF as a blob
-      const { url } = await savePdfAsBlob(
-        filledPdfDoc,
-        formType === "bestellformular"
-          ? "Bestellformular.pdf"
-          : `${getDokumentationsbogenName()}.pdf`,
-      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error generating PDF");
+      }
 
-      // Open the filled PDF in a new tab
-      window.open(url, "_blank");
+      const result = await response.json();
+
+      // Open the filled PDF in a new tab instead of downloading it
+      window.open(result.downloadUrl, "_blank");
 
       // Update the download status
       if (formType === "bestellformular") {
@@ -383,10 +363,13 @@ export const OrderFormsStep = () => {
       const willBothBeDownloaded =
         willBestellformularBeDownloaded && willDokumentationsbogenBeDownloaded;
 
-      // Prepare updated form data
+      // Prepare updated form data with file metadata
       const updatedOrderForms = {
         ...onboardingData.documents?.orderForms,
         [`${formType}Downloaded`]: true,
+        [`${formType}FilePath`]: result.filePath,
+        [`${formType}FileName`]: result.filename,
+        [`${formType}DownloadedAt`]: new Date().toISOString(),
       };
 
       const updatedDocuments = {

@@ -13,6 +13,12 @@ givve_documents/
 │   │   ├── {document_type}/           # Specific document type (e.g., 'gewerbeanmeldung')
 │   │   │   └── {timestamp}_{filename} # Actual file with timestamp
 │   │
+│   ├── prefilled_forms/               # Pre-filled PDF forms
+│   │   ├── bestellformular/           # Pre-filled Bestellformular
+│   │   │   └── {timestamp}_{filename} # Actual file with timestamp
+│   │   └── dokumentationsbogen/       # Pre-filled Dokumentationsbogen
+│   │       └── {timestamp}_{filename} # Actual file with timestamp
+│   │
 │   ├── signed_forms/                  # Signed order forms
 │   │   ├── bestellformular/           # Signed Bestellformular
 │   │   │   └── {timestamp}_{filename} # Actual file with timestamp
@@ -41,11 +47,12 @@ givve_documents/
 The system organizes documents into the following categories:
 
 1. **Legal Form Documents**: Documents specific to a company's legal form (e.g., Handelsregisterauszug, Gesellschaftsvertrag)
-2. **Signed Forms**: Completed and signed order forms (Bestellformular, Dokumentationsbogen)
-3. **Identification Documents**: Documents used for identity verification
-4. **Additional Documents**: Any supplementary documentation required in the process
-5. **Logos**: Company logos for card customization
-6. **Design Files**: Custom card design files
+2. **Pre-filled Forms**: System-generated forms with pre-filled company information that need to be signed
+3. **Signed Forms**: Completed and signed order forms (Bestellformular, Dokumentationsbogen)
+4. **Identification Documents**: Documents used for identity verification
+5. **Additional Documents**: Any supplementary documentation required in the process
+6. **Logos**: Company logos for card customization
+7. **Design Files**: Custom card design files
 
 ## Implementation Details
 
