@@ -279,26 +279,50 @@ async function fillPdfForm(
       console.log(`Field: ${field.getName()}, Type: ${field.constructor.name}`);
     });
 
+    // On Vercel, field type is often just "e" instead of proper constructor name
+    // We'll use a different approach to determine field types
+    const isVercelEnvironment = process.env.VERCEL === "1";
+    console.log(`Detected Vercel environment: ${isVercelEnvironment}`);
+
     // Map fields to their types
-    const fieldMap = new Map(
-      fields.map((field) => {
-        let type = "unknown";
+    const fieldMap = new Map();
 
-        if (field.constructor.name.includes("PDFTextField")) {
-          type = "text";
-        } else if (field.constructor.name.includes("PDFCheckBox")) {
-          type = "checkbox";
-        } else if (field.constructor.name.includes("PDFRadioGroup")) {
-          type = "radio";
-        } else if (field.constructor.name.includes("PDFDropdown")) {
-          type = "dropdown";
-        } else if (field.constructor.name.includes("PDFOptionList")) {
-          type = "option";
+    for (const field of fields) {
+      const fieldName = field.getName();
+      let fieldType = "unknown";
+
+      if (isVercelEnvironment) {
+        // In Vercel, we'll try to determine type by field name and behaviors
+        // Note: This is a simplistic approach and may need refinement
+        if (
+          fieldName.toLowerCase().includes("check") ||
+          fieldName === "givve StandardCard" ||
+          fieldName === "givve LogoCard" ||
+          fieldName === "givve DesignCard"
+        ) {
+          fieldType = "checkbox";
+        } else {
+          // Default to text for most fields on Vercel
+          fieldType = "text";
         }
+      } else {
+        // Standard environment - use constructor name
+        if (field.constructor.name.includes("PDFTextField")) {
+          fieldType = "text";
+        } else if (field.constructor.name.includes("PDFCheckBox")) {
+          fieldType = "checkbox";
+        } else if (field.constructor.name.includes("PDFRadioGroup")) {
+          fieldType = "radio";
+        } else if (field.constructor.name.includes("PDFDropdown")) {
+          fieldType = "dropdown";
+        } else if (field.constructor.name.includes("PDFOptionList")) {
+          fieldType = "option";
+        }
+      }
 
-        return [field.getName(), type];
-      }),
-    );
+      fieldMap.set(fieldName, fieldType);
+      console.log(`Mapped field "${fieldName}" to type "${fieldType}"`);
+    }
 
     // Log all field values we're trying to fill
     console.log("Attempting to fill the following fields:");
@@ -387,14 +411,49 @@ async function fillPdfForm(
       }
     }
 
-    // Flatten form to make it non-editable - uncomment if needed
-    // console.log("Flattening form...");
-    // form.flatten();
-    // console.log("Form flattened successfully");
-
     console.log(
       `Form filling summary: ${filledFields} fields filled, ${skippedFields} fields skipped, ${errorFields} errors`,
     );
+
+    if (filledFields === 0 && isVercelEnvironment) {
+      console.log("No fields filled, attempting emergency direct approach");
+      // Last resort: Try a more direct approach for Vercel
+      for (const [key, value] of Object.entries(fieldValues)) {
+        try {
+          // Skip empty values
+          if (!value) continue;
+
+          // Try to get field by name directly
+          const field = form.getField(key);
+          if (!field) continue;
+
+          // Force type assertion and call setText
+          try {
+            (field as any).setText(value);
+            console.log(`✅ Emergency approach: Set text for ${key}`);
+            filledFields++;
+          } catch (e) {
+            // If setText fails, try one more approach with check/select
+            try {
+              if (key.includes("Card") && value.toLowerCase() === "yes") {
+                (field as any).check();
+                console.log(`✅ Emergency approach: Checked ${key}`);
+                filledFields++;
+              }
+            } catch (e2) {
+              // Give up on this field
+            }
+          }
+        } catch (e) {
+          // Ignore errors in emergency mode
+        }
+      }
+      console.log(`Emergency approach results: ${filledFields} fields filled`);
+    }
+
+    if (filledFields === 0) {
+      throw new Error("Failed to fill any fields in the PDF");
+    }
   } catch (error: any) {
     console.error("Error in fillPdfForm function:", error.message || error);
     throw new Error(`Failed to fill PDF form: ${error.message || error}`);
