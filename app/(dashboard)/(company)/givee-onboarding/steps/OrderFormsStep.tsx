@@ -206,6 +206,51 @@ export const OrderFormsStep = () => {
     return formData;
   };
 
+  const testPdfApi = async () => {
+    try {
+      console.log("Testing PDF API...");
+      const response = await fetch("/api/pdf/test");
+      const result = await response.json();
+      console.log("PDF API test result:", result);
+      return result.success;
+    } catch (error) {
+      console.error("Error testing PDF API:", error);
+      return false;
+    }
+  };
+
+  const testTemplatesApi = async () => {
+    try {
+      console.log("Testing templates API...");
+      const response = await fetch("/api/pdf/templates");
+      const result = await response.json();
+      console.log("Templates API test result:", result);
+      return result.success && result.files && result.files.length > 0;
+    } catch (error) {
+      console.error("Error testing templates API:", error);
+      return false;
+    }
+  };
+
+  const testPdfFillApi = async (templatePath: string) => {
+    try {
+      console.log("Testing PDF fill API with template:", templatePath);
+      const response = await fetch("/api/pdf/filltest", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ templatePath }),
+      });
+      const result = await response.json();
+      console.log("PDF fill test result:", result);
+      return result.success;
+    } catch (error) {
+      console.error("Error testing PDF fill API:", error);
+      return false;
+    }
+  };
+
   const handleDownload = async (
     formType: "bestellformular" | "dokumentationsbogen",
   ) => {
@@ -221,7 +266,22 @@ export const OrderFormsStep = () => {
     setLoading(formType);
 
     try {
+      // Test PDF API functionality first
+      const pdfApiWorking = await testPdfApi();
+      if (!pdfApiWorking) {
+        console.warn(
+          "PDF API test failed, but continuing with download attempt...",
+        );
+      }
+
+      // Test templates accessibility
+      const templatesAccessible = await testTemplatesApi();
+      if (!templatesAccessible) {
+        console.warn("Templates test failed, PDF generation may fail...");
+      }
+
       // Fetch subsidiary data
+      console.log("Fetching subsidiary data...");
       const { data: fullSubsidiaryData, error: subsidiaryError } =
         await supabase
           .from("subsidiaries")
@@ -240,6 +300,7 @@ export const OrderFormsStep = () => {
       }
 
       // Fetch contacts separately from ansprechpartner table
+      console.log("Fetching contacts data...");
       const { data: contactsData, error: contactsError } = await supabase
         .from("ansprechpartner")
         .select("*")
@@ -265,6 +326,7 @@ export const OrderFormsStep = () => {
       } else if (formType === "dokumentationsbogen") {
         // Use the appropriate Dokumentationsbogen based on legal form
         const docType = getDocumentType();
+        console.log("Document type based on legal form:", docType);
         switch (docType) {
           case "GmbH":
           case "UG":
@@ -305,11 +367,20 @@ export const OrderFormsStep = () => {
             templatePath = "templates/Dokumentationsbogen_JP_allgemein.pdf";
         }
       }
+      console.log("Selected template path:", templatePath);
+
+      // Test PDF fill API with the template
+      const pdfFillTestSuccessful = await testPdfFillApi(templatePath);
+      if (!pdfFillTestSuccessful) {
+        console.warn("PDF fill test failed, actual PDF filling may also fail");
+      }
 
       // Compile form data
+      console.log("Compiling form data...");
       const formData = compileFormData(fullSubsidiaryData, contactsData || []);
 
       // Map the data based on form type
+      console.log("Mapping form data for template...");
       let mappedData;
       if (formType === "bestellformular") {
         mappedData = mapCompanyDataToBestellformular(formData);
@@ -325,6 +396,7 @@ export const OrderFormsStep = () => {
       }
 
       // Use the server-side PDF filling API
+      console.log(`Calling PDF fill API for ${formType}...`);
       const response = await fetch("/api/pdf/fill", {
         method: "POST",
         headers: {
@@ -338,12 +410,17 @@ export const OrderFormsStep = () => {
         }),
       });
 
+      console.log(`API response status: ${response.status}`);
+      const result = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error generating PDF");
+        console.error("PDF fill API error:", result);
+        throw new Error(
+          result.error || result.message || "Error generating PDF",
+        );
       }
 
-      const result = await response.json();
+      console.log("PDF fill API success:", result);
 
       // Open the filled PDF in a new tab instead of downloading it
       window.open(result.downloadUrl, "_blank");
@@ -364,6 +441,7 @@ export const OrderFormsStep = () => {
         willBestellformularBeDownloaded && willDokumentationsbogenBeDownloaded;
 
       // Prepare updated form data with file metadata
+      console.log("Updating form data with file metadata...");
       const updatedOrderForms = {
         ...onboardingData.documents?.orderForms,
         [`${formType}Downloaded`]: true,
@@ -384,6 +462,7 @@ export const OrderFormsStep = () => {
 
       // NEVER use saveProgress for downloads to prevent automatic step advancement
       // Always do direct database updates instead
+      console.log("Updating database records...");
       try {
         // Update the givve_onboarding_progress record directly
         const { data: progressData } = await supabase
@@ -417,6 +496,8 @@ export const OrderFormsStep = () => {
               willDokumentationsbogenBeDownloaded,
           })
           .eq("id", subsidiary.id);
+
+        console.log("Database records updated successfully");
       } catch (error) {
         console.error("Error silently updating download status:", error);
         // Don't show error to user, as the download itself was successful
