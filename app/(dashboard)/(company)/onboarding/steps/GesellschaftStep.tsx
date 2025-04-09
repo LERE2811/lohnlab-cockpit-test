@@ -108,10 +108,10 @@ export const GesellschaftStep = () => {
   const validateForm = (values: Partial<FormValues>) => {
     const currentValues = values || form.getValues();
 
-    // Basic required field validation
+    // Basic required field validation - check if values are set as booleans
     let valid =
-      currentValues.has_works_council !== undefined &&
-      currentValues.has_collective_agreement !== undefined;
+      typeof currentValues.has_works_council === "boolean" &&
+      typeof currentValues.has_collective_agreement === "boolean";
 
     // Additional validation for collective agreement
     if (currentValues.has_collective_agreement) {
@@ -128,11 +128,11 @@ export const GesellschaftStep = () => {
   const getValidationMessage = () => {
     const values = form.getValues();
 
-    if (values.has_works_council === undefined) {
+    if (typeof values.has_works_council !== "boolean") {
       return "Bitte geben Sie an, ob ein Betriebsrat existiert.";
     }
 
-    if (values.has_collective_agreement === undefined) {
+    if (typeof values.has_collective_agreement !== "boolean") {
       return "Bitte geben Sie an, ob ein Tarifvertrag existiert.";
     }
 

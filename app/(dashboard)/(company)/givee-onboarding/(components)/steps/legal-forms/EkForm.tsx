@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
+import { Building2, Info } from "lucide-react";
 import { PepCheckComponent, IndustrySelect } from "./components";
+import { FileUpload } from "@/components/FileUpload";
+import { useCompany } from "@/context/company-context";
 
 interface EkFormProps {
   onFieldsChange: (fields: any) => void;
@@ -19,10 +20,7 @@ export const EkForm = ({
   formData,
   legalForm,
 }: EkFormProps) => {
-  const [handelsregisterFile, setHandelsregisterFile] = useState<File | null>(
-    null,
-  );
-  const [addressProofFile, setAddressProofFile] = useState<File | null>(null);
+  const { subsidiary } = useCompany();
   const [industry, setIndustry] = useState<string>(formData.industry || "");
   const [documentState, setDocumentState] = useState({
     handelsregisterNumber: formData.handelsregisterNumber || "",
@@ -39,24 +37,107 @@ export const EkForm = ({
     pepDetails: formData.pepDetails || "",
   });
 
-  const handleFileUpload = (file: File | null) => {
-    if (!file) return;
+  // Helper function to access documents regardless of nesting
+  const getDocument = (key: string) => {
+    // Try direct access first (documents might be flattened)
+    if (
+      formData[key] &&
+      typeof formData[key] === "object" &&
+      "fileName" in formData[key]
+    ) {
+      return formData[key];
+    }
 
-    setHandelsregisterFile(file);
-    onFieldsChange({
-      ...formData,
-      ...documentState,
-      handelsregisterFile: file.name,
-    });
+    // Then try through documents object
+    if (formData.documents && formData.documents[key]) {
+      return formData.documents[key];
+    }
+
+    // Finally, try through nested documents object
+    if (
+      formData.documents &&
+      formData.documents.documents &&
+      formData.documents.documents[key]
+    ) {
+      return formData.documents.documents[key];
+    }
+
+    return null;
   };
 
-  const removeFile = () => {
-    setHandelsregisterFile(null);
-    onFieldsChange({
-      ...formData,
-      ...documentState,
-      handelsregisterFile: null,
-    });
+  const handleFileUpload = (
+    type: string,
+    fileData: {
+      signedUrl: string;
+      filePath: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+    },
+  ) => {
+    // Create a new file metadata object
+    const newFileMetadata = {
+      fileName: fileData.fileName,
+      filePath: fileData.filePath,
+      fileType: fileData.fileType,
+      fileSize: fileData.fileSize,
+      signedUrl: fileData.signedUrl,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    // Check if we need to use the current structure or create a new one
+    if (!formData.documents) {
+      // No documents object yet, create one
+      onFieldsChange({
+        ...formData,
+        documents: {
+          [type]: newFileMetadata,
+        },
+      });
+    } else {
+      // We have a documents object already
+      onFieldsChange({
+        ...formData,
+        // Add directly to top level as well as under documents to ensure it's found
+        [type]: newFileMetadata,
+        documents: {
+          ...formData.documents,
+          [type]: newFileMetadata,
+        },
+      });
+    }
+  };
+
+  const handleFileRemove = (type: string) => {
+    // Create a copy of formData to modify
+    const updatedFormData = { ...formData };
+
+    // Remove from all possible locations
+    if (updatedFormData[type]) {
+      delete updatedFormData[type];
+    }
+
+    if (updatedFormData.documents) {
+      if (updatedFormData.documents[type]) {
+        const updatedDocuments = { ...updatedFormData.documents };
+        delete updatedDocuments[type];
+        updatedFormData.documents = updatedDocuments;
+      }
+
+      // Also check nested documents
+      if (
+        updatedFormData.documents.documents &&
+        updatedFormData.documents.documents[type]
+      ) {
+        const updatedNestedDocuments = {
+          ...updatedFormData.documents.documents,
+        };
+        delete updatedNestedDocuments[type];
+        updatedFormData.documents.documents = updatedNestedDocuments;
+      }
+    }
+
+    onFieldsChange(updatedFormData);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -74,7 +155,11 @@ export const EkForm = ({
 
   // Update parent form data when PEP information changes
   const handleDocumentStateChange = (newState: any) => {
-    setDocumentState(newState);
+    setDocumentState({
+      ...documentState,
+      hasPep: newState.hasPep,
+      pepDetails: newState.pepDetails,
+    });
     onFieldsChange({
       ...formData,
       hasPep: newState.hasPep,
@@ -89,6 +174,8 @@ export const EkForm = ({
       industry: value,
     });
   };
+
+  if (!subsidiary) return null;
 
   return (
     <Card>
@@ -122,41 +209,31 @@ export const EkForm = ({
         <div className="space-y-4">
           <div>
             <h4 className="text-md mb-3 font-medium">Handelsregisterauszug</h4>
-            <div className="rounded-lg border-2 border-dashed bg-white p-6">
-              <input
-                type="file"
-                onChange={(e) => handleFileUpload(e.target.files?.[0] || null)}
-                className="hidden"
-                id="ek-hr-upload"
-                accept=".pdf,.jpg,.jpeg,.png"
-              />
-              <label
-                htmlFor="ek-hr-upload"
-                className="flex cursor-pointer flex-col items-center"
-              >
-                <Upload className="mb-2 h-10 w-10 text-gray-400" />
-                <span className="mt-2 text-sm font-medium text-gray-700">
-                  {handelsregisterFile
-                    ? handelsregisterFile.name
-                    : "Handelsregisterauszug hochladen"}
-                </span>
-                <span className="mt-1 text-xs text-gray-500">
-                  Klicken Sie hier, um eine Datei auszuwählen
-                </span>
-              </label>
-            </div>
-
-            {handelsregisterFile && (
-              <div className="mt-4 flex items-center justify-between rounded border bg-white p-3">
-                <div className="flex items-center">
-                  <FileText className="mr-2 h-5 w-5 text-blue-600" />
-                  <span>{handelsregisterFile.name}</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={removeFile}>
-                  <Trash2 className="mr-1 h-4 w-4" /> Entfernen
-                </Button>
-              </div>
-            )}
+            <p className="mb-4 text-sm text-muted-foreground">
+              Bitte laden Sie einen aktuellen Handelsregisterauszug hoch (nicht
+              älter als 6 Monate).
+            </p>
+            <FileUpload
+              folder={`${subsidiary.id}/legal_form_documents/handelsregister`}
+              subsidiaryId={subsidiary.id}
+              onUploadComplete={(fileData) =>
+                handleFileUpload("handelsregister", fileData)
+              }
+              onRemove={() => handleFileRemove("handelsregister")}
+              existingFileUrl={
+                getDocument("handelsregister")?.signedUrl || null
+              }
+              existingFilePath={
+                getDocument("handelsregister")?.filePath || null
+              }
+              existingFileName={
+                getDocument("handelsregister")?.fileName || null
+              }
+              acceptedFileTypes="application/pdf,image/*"
+              maxSizeMB={10}
+              label="Handelsregisterauszug hochladen"
+              bucket="givve_documents"
+            />
           </div>
 
           <div className="mt-4 space-y-2">
@@ -286,11 +363,13 @@ export const EkForm = ({
             </div>
           </div>
 
-          {/* PEP Check Component */}
+          {/* PEP Check */}
           <PepCheckComponent
-            documentState={documentState}
+            documentState={{
+              hasPep: documentState.hasPep,
+              pepDetails: documentState.pepDetails,
+            }}
             setDocumentState={handleDocumentStateChange}
-            className="mt-6"
           />
         </div>
       </CardContent>

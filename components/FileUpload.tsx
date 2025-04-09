@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   Upload,
 } from "lucide-react";
 import Image from "next/image";
+import { FileDisplayItem } from "@/app/(dashboard)/(company)/givee-onboarding/(components)/steps/legal-forms/components";
 
 interface FileUploadProps {
   folder: string;
@@ -34,6 +35,7 @@ interface FileUploadProps {
   maxSizeMB?: number;
   label?: string;
   bucket?: string;
+  allowMultiple?: boolean;
 }
 
 export const FileUpload = ({
@@ -48,6 +50,7 @@ export const FileUpload = ({
   maxSizeMB = 10,
   label = "Upload File",
   bucket = "onboarding_documents",
+  allowMultiple = false,
 }: FileUploadProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -62,6 +65,19 @@ export const FileUpload = ({
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Update internal state when props change
+  useEffect(() => {
+    if (existingFileUrl) {
+      setFilePreview(existingFileUrl);
+    }
+    if (existingFileName) {
+      setFileName(existingFileName);
+    }
+    if (existingFilePath) {
+      setFilePath(existingFilePath);
+    }
+  }, [existingFileUrl, existingFileName, existingFilePath]);
 
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
@@ -207,49 +223,137 @@ export const FileUpload = ({
   };
 
   const renderFilePreview = () => {
-    if (!filePreview && !fileName) {
-      return null;
+    // If we have an existing file but no preview generated yet, try to determine the type
+    const isExistingFile = fileName && !isUploading && !filePreview;
+    const fileType = existingFileUrl
+      ?.split("?")[0]
+      ?.split(".")
+      .pop()
+      ?.toLowerCase();
+    const isPdfFile = fileType === "pdf" || existingFileUrl?.includes("pdf");
+    const isImageFile = ["jpg", "jpeg", "png", "gif", "webp"].includes(
+      fileType || "",
+    );
+
+    if (isUploading) {
+      return (
+        <div className="flex h-24 w-full flex-col items-center justify-center rounded-md border border-dashed p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="mt-2 text-sm text-muted-foreground">
+            Wird hochgeladen... ({uploadProgress}%)
+          </p>
+          <Progress value={uploadProgress} className="mt-2 h-2 w-full" />
+        </div>
+      );
     }
 
-    return (
-      <div className="mt-4 rounded-md border p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            {filePreview && isImage(fileName?.split(".").pop() || "") ? (
-              <div className="relative h-16 w-16 overflow-hidden rounded-md">
-                <Image
-                  src={filePreview}
-                  alt="File preview"
-                  fill
-                  className="object-cover"
-                />
-              </div>
-            ) : isPdf(fileName?.split(".").pop() || "") ? (
-              <FileText className="h-10 w-10 text-primary" />
-            ) : (
-              <FileIcon className="h-10 w-10 text-primary" />
-            )}
-            <div>
-              <p className="text-sm font-medium">{fileName}</p>
-              {isUploading ? (
-                <p className="text-xs text-muted-foreground">Uploading...</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Uploaded</p>
+    if (filePreview && isImage(fileName?.split(".").pop() || "")) {
+      return (
+        <div className="relative">
+          <div className="relative h-40 w-full overflow-hidden rounded-md border">
+            <Image
+              src={filePreview}
+              alt="File preview"
+              fill
+              className="object-contain"
+            />
+          </div>
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
+            onClick={() => {
+              onRemove();
+              handleRemove();
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      );
+    }
+
+    if (isPdfFile || isPdf(fileName?.split(".").pop() || "")) {
+      return (
+        <div className="relative">
+          <div className="flex h-24 w-full items-center rounded-md border bg-muted/20 p-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-md bg-muted">
+              <FileText className="h-8 w-8 text-primary" />
+            </div>
+            <div className="ml-3 flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium">{fileName}</p>
+              <p className="text-xs text-muted-foreground">PDF Dokument</p>
+              {existingFileUrl && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-1 h-6 p-0 text-primary"
+                  onClick={() => window.open(existingFileUrl, "_blank")}
+                >
+                  Dokument ansehen
+                </Button>
               )}
             </div>
           </div>
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRemove}
-            disabled={isUploading}
+            variant="destructive"
+            size="icon"
+            className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
+            onClick={() => {
+              onRemove();
+              handleRemove();
+            }}
           >
-            <X className="h-4 w-4" />
+            <X className="h-3 w-3" />
           </Button>
         </div>
-        {isUploading && (
-          <Progress value={uploadProgress} className="mt-2 h-1" />
-        )}
+      );
+    }
+
+    if (isExistingFile || fileName) {
+      return (
+        <div className="relative">
+          <div className="flex h-24 w-full items-center rounded-md border bg-muted/20 p-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-md bg-muted">
+              <FileIcon className="h-8 w-8 text-primary" />
+            </div>
+            <div className="ml-3 flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium">{fileName}</p>
+              <p className="text-xs text-muted-foreground">Dokument</p>
+              {existingFileUrl && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-1 h-6 p-0 text-primary"
+                  onClick={() => window.open(existingFileUrl, "_blank")}
+                >
+                  Dokument ansehen
+                </Button>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
+            onClick={() => {
+              onRemove();
+              handleRemove();
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed p-4 transition-colors hover:bg-muted/50"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Upload className="h-6 w-6 text-muted-foreground" />
+        <p className="mt-2 text-sm text-muted-foreground">{label}</p>
       </div>
     );
   };
@@ -266,6 +370,7 @@ export const FileUpload = ({
             disabled={isUploading}
             className="hidden"
             id="file-upload"
+            multiple={allowMultiple}
           />
           <Button
             variant="outline"

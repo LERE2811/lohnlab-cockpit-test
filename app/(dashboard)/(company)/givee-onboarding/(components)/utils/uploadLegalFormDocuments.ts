@@ -41,11 +41,12 @@ export const uploadFile = async (
 
     if (data) {
       return {
-        name: file.name,
-        path: filePath,
-        type: file.type,
-        size: file.size,
-        url: data.signedUrl,
+        fileName: file.name,
+        filePath: filePath,
+        fileType: file.type,
+        fileSize: file.size,
+        signedUrl: data.signedUrl,
+        uploadedAt: new Date().toISOString(),
       };
     } else {
       throw new Error("Could not generate signed URL");

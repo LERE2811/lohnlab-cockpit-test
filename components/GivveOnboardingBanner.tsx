@@ -4,15 +4,44 @@ import { useRouter } from "next/navigation";
 import { useCompany } from "@/context/company-context";
 import { Button } from "@/components/ui/button";
 import { CreditCard, X, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/utils/supabase/client";
 
 export const GivveOnboardingBanner = () => {
   const { subsidiary } = useCompany();
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
 
-  // Don't show the banner if there's no subsidiary or if givve card is not enabled or if banner is dismissed
-  if (!subsidiary || !subsidiary.has_givve_card || dismissed) {
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      if (!subsidiary) return;
+
+      try {
+        const { data: progressData, error } = await supabase
+          .from("givve_onboarding_progress")
+          .select("completed")
+          .eq("subsidiary_id", subsidiary.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error fetching givve onboarding progress:", error);
+          return;
+        }
+
+        setIsCompleted(!!progressData?.completed);
+      } catch (error) {
+        console.error("Error checking onboarding status:", error);
+      }
+    };
+
+    if (subsidiary) {
+      checkOnboardingStatus();
+    }
+  }, [subsidiary]);
+
+  // Don't show the banner if there's no subsidiary, if givve card is not enabled, if banner is dismissed, or if onboarding is completed
+  if (!subsidiary || !subsidiary.has_givve_card || dismissed || isCompleted) {
     return null;
   }
 

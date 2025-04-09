@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Building2, Upload, Info, FileText, Trash2 } from "lucide-react";
 import { PepCheckComponent, IndustrySelect } from "./components";
+import { FileUpload } from "@/components/FileUpload";
+import { useCompany } from "@/context/company-context";
 
 interface EinzelunternehmenFormProps {
   onFieldsChange: (fields: any) => void;
@@ -20,6 +22,7 @@ export const EinzelunternehmenForm = ({
   legalForm,
 }: EinzelunternehmenFormProps) => {
   console.log("EinzelunternehmenForm rendering with formData:", formData);
+  const { subsidiary } = useCompany();
 
   const [gewerbeanmeldungFile, setGewerbeanmeldungFile] = useState<File | null>(
     null,
@@ -99,6 +102,111 @@ export const EinzelunternehmenForm = ({
       industry: value,
     });
   };
+
+  // Helper function to access documents regardless of nesting
+  const getDocument = (key: string) => {
+    // Try direct access first (documents might be flattened)
+    if (
+      formData[key] &&
+      typeof formData[key] === "object" &&
+      "fileName" in formData[key]
+    ) {
+      return formData[key];
+    }
+
+    // Then try through documents object
+    if (formData.documents && formData.documents[key]) {
+      return formData.documents[key];
+    }
+
+    // Finally, try through nested documents object
+    if (
+      formData.documents &&
+      formData.documents.documents &&
+      formData.documents.documents[key]
+    ) {
+      return formData.documents.documents[key];
+    }
+
+    return null;
+  };
+
+  const handleFileUpload = (
+    type: string,
+    fileData: {
+      signedUrl: string;
+      filePath: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+    },
+  ) => {
+    // Create a new file metadata object
+    const newFileMetadata = {
+      fileName: fileData.fileName,
+      filePath: fileData.filePath,
+      fileType: fileData.fileType,
+      fileSize: fileData.fileSize,
+      signedUrl: fileData.signedUrl,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    // Check if we need to use the current structure or create a new one
+    if (!formData.documents) {
+      // No documents object yet, create one
+      onFieldsChange({
+        ...formData,
+        documents: {
+          [type]: newFileMetadata,
+        },
+      });
+    } else {
+      // We have a documents object already
+      onFieldsChange({
+        ...formData,
+        // Add directly to top level as well as under documents to ensure it's found
+        [type]: newFileMetadata,
+        documents: {
+          ...formData.documents,
+          [type]: newFileMetadata,
+        },
+      });
+    }
+  };
+
+  const handleFileRemove = (type: string) => {
+    // Create a copy of formData to modify
+    const updatedFormData = { ...formData };
+
+    // Remove from all possible locations
+    if (updatedFormData[type]) {
+      delete updatedFormData[type];
+    }
+
+    if (updatedFormData.documents) {
+      if (updatedFormData.documents[type]) {
+        const updatedDocuments = { ...updatedFormData.documents };
+        delete updatedDocuments[type];
+        updatedFormData.documents = updatedDocuments;
+      }
+
+      // Also check nested documents
+      if (
+        updatedFormData.documents.documents &&
+        updatedFormData.documents.documents[type]
+      ) {
+        const updatedNestedDocuments = {
+          ...updatedFormData.documents.documents,
+        };
+        delete updatedNestedDocuments[type];
+        updatedFormData.documents.documents = updatedNestedDocuments;
+      }
+    }
+
+    onFieldsChange(updatedFormData);
+  };
+
+  if (!subsidiary) return null;
 
   return (
     <Card>
@@ -248,6 +356,37 @@ export const EinzelunternehmenForm = ({
             setDocumentState={handleDocumentStateChange}
             className="mt-6"
           />
+
+          <div className="mt-4">
+            <h4 className="text-md mb-3 font-medium">
+              Gewerbeanmeldung / Gewerbeschein
+            </h4>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Bitte laden Sie Ihre Gewerbeanmeldung oder Ihren Gewerbeschein
+              hoch.
+            </p>
+            <FileUpload
+              folder={`${subsidiary.id}/legal_form_documents/gewerbeanmeldung`}
+              subsidiaryId={subsidiary.id}
+              onUploadComplete={(fileData) =>
+                handleFileUpload("gewerbeanmeldung", fileData)
+              }
+              onRemove={() => handleFileRemove("gewerbeanmeldung")}
+              existingFileUrl={
+                getDocument("gewerbeanmeldung")?.signedUrl || null
+              }
+              existingFilePath={
+                getDocument("gewerbeanmeldung")?.filePath || null
+              }
+              existingFileName={
+                getDocument("gewerbeanmeldung")?.fileName || null
+              }
+              acceptedFileTypes="application/pdf,image/*"
+              maxSizeMB={10}
+              label="Gewerbeanmeldung hochladen"
+              bucket="givve_documents"
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

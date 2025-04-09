@@ -1,4 +1,3 @@
-export { GmbHForm } from "./GmbHForm";
 export { AGForm } from "./AGForm";
 export { OtherForm } from "./OtherForm";
 export { GmbHCoKGForm } from "./GmbHCoKGForm";

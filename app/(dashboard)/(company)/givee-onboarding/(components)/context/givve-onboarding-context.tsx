@@ -166,17 +166,42 @@ export const GivveOnboardingProvider = ({
           try {
             // Regenerate signed URLs for document files
             if (formDataFromProgress.documents) {
+              // Check first if we have a nested documents object
+              if (formDataFromProgress.documents.documents) {
+                for (const [key, value] of Object.entries(
+                  formDataFromProgress.documents.documents,
+                )) {
+                  if (
+                    value &&
+                    typeof value === "object" &&
+                    "filePath" in value &&
+                    typeof value.filePath === "string"
+                  ) {
+                    const { data: urlData } = await supabase.storage
+                      .from("givve_documents")
+                      .createSignedUrl(value.filePath, 3600);
+
+                    if (urlData) {
+                      formDataFromProgress.documents.documents[key].signedUrl =
+                        urlData.signedUrl;
+                    }
+                  }
+                }
+              }
+
+              // Also process documents directly at the top level
               for (const [key, value] of Object.entries(
                 formDataFromProgress.documents,
               )) {
                 if (
+                  key !== "documents" && // Skip the nested documents object we already processed
                   value &&
                   typeof value === "object" &&
                   "filePath" in value &&
                   typeof value.filePath === "string"
                 ) {
                   const { data: urlData } = await supabase.storage
-                    .from("onboarding_documents")
+                    .from("givve_documents")
                     .createSignedUrl(value.filePath, 3600);
 
                   if (urlData) {
@@ -193,7 +218,7 @@ export const GivveOnboardingProvider = ({
               typeof formDataFromProgress.logoFile === "string"
             ) {
               const { data: logoUrlData } = await supabase.storage
-                .from("onboarding_documents")
+                .from("givve_documents")
                 .createSignedUrl(formDataFromProgress.logoFile, 3600);
 
               if (logoUrlData) {
@@ -206,7 +231,7 @@ export const GivveOnboardingProvider = ({
               typeof formDataFromProgress.designFile === "string"
             ) {
               const { data: designUrlData } = await supabase.storage
-                .from("onboarding_documents")
+                .from("givve_documents")
                 .createSignedUrl(formDataFromProgress.designFile, 3600);
 
               if (designUrlData) {

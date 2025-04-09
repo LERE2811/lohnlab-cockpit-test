@@ -1,11 +1,12 @@
 import { z } from "zod";
 
 export interface OnboardingFileMetadata {
-  name: string;
-  path: string;
-  type: string;
-  size: number;
-  url: string;
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  fileSize: number;
+  signedUrl?: string;
+  uploadedAt?: string;
 }
 
 export interface LegalFormDocument {
@@ -31,3 +32,14 @@ export const givveOnboardingProgressSchema = z.object({
   last_updated: z.string().datetime().optional(),
   created_at: z.string().datetime().optional(),
 });
+
+export enum GivveDocumentCategory {
+  SIGNED_FORMS = "signed_forms",
+  LEGAL_DOCUMENTS = "legal_documents",
+  CARD_DESIGN = "card_design",
+}
+
+export enum GivveDocumentType {
+  BESTELLFORMULAR = "bestellformular",
+  DOKUMENTATIONSBOGEN = "dokumentationsbogen",
+}

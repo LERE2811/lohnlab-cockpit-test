@@ -259,6 +259,12 @@ export function mapCompanyDataToDokumentationsbogen(
     birthDate?: string;
     birthPlace?: string;
     nationality?: string;
+    isListed?: boolean;
+    stockExchange?: string;
+    otherStockExchange?: string;
+    employeeCount?: string;
+    hasPep?: boolean;
+    pepDetails?: string;
   },
   documentType: string,
 ): Record<string, string> {
@@ -413,9 +419,10 @@ export function mapCompanyDataToDokumentationsbogen(
         ...industryFields,
 
         // PEP (Politically Exposed Person) - default to No
-        Nein: "Yes",
-        "Ja folgende Person folgendes Amt": "Off",
-        "Person, Amt": "",
+        Nein: data.hasPep === false ? "Yes" : "Off",
+        "Ja folgende Person folgendes Amt":
+          data.hasPep === true ? "Yes" : "Off",
+        "Person, Amt": data.pepDetails || "",
 
         // Purpose of business relationship
         "Bereitstellung eines Sachbezugs für voraussichtlich": "Yes",
@@ -439,39 +446,196 @@ export function mapCompanyDataToDokumentationsbogen(
 
     case "GmbH":
     case "UG":
+      // Industry category fields for GmbH/UG
+      const gmbhIndustryFields = {
+        "Land und Forstwirtschaft Fischerei": "Off",
+        "Bergbau und Gewinnung von Steinen und Erden": "Off",
+        "Verarbeitendes Gewerbe": "Off",
+        Energieversorgung: "Off",
+        "Wasserversorgung Abwasser und Abfallentsorgung": "Off",
+        Baugewerbe: "Off",
+        "Handel Instandhaltung und Reparatur von": "Off",
+        "Verkehr und Lagerei": "Off",
+        Gastgewerbe: "Off",
+        "Information und Kommunikation": "Off",
+        "Erbringung von Finanz und Versicherungs": "Off",
+        "Grundstücks und Wohnungswesen": "Off",
+        "Erbringung von freiberuflichen wissenschaftlichen": "Off",
+        "Erbringung von sonstigen wirtschaftlichen": "Off",
+        "Öffentliche Verwaltung Verteidigung": "Off",
+        "Erziehung und Unterricht": "Off",
+        "Gesundheits und Sozialwesen": "Off",
+        "Kunst Unterhaltung und Erholung": "Off",
+        "Erbringung von sonstigen Dienstleistungen": "Off",
+        "Private Haushalte mit Hauspersonal Herstellung": "Off",
+        "Exterritoriale Organisationen und Körperschaften": "Off",
+      };
+
+      // Map industry category from data to checkbox field name for GmbH/UG
+      if (data.industryCategory) {
+        // Create mapping between industry categories and field names
+        const industryMapping: Record<string, string> = {
+          "Land- und Forstwirtschaft, Fischerei":
+            "Land und Forstwirtschaft Fischerei",
+          "Bergbau und Gewinnung von Steinen und Erden":
+            "Bergbau und Gewinnung von Steinen und Erden",
+          "Verarbeitendes Gewerbe": "Verarbeitendes Gewerbe",
+          Energieversorgung: "Energieversorgung",
+          "Wasserversorgung; Abwasser- und Abfallentsorgung":
+            "Wasserversorgung Abwasser und Abfallentsorgung",
+          Baugewerbe: "Baugewerbe",
+          "Handel; Instandhaltung und Reparatur von Kraftfahrzeugen":
+            "Handel Instandhaltung und Reparatur von",
+          "Verkehr und Lagerei": "Verkehr und Lagerei",
+          Gastgewerbe: "Gastgewerbe",
+          "Information und Kommunikation": "Information und Kommunikation",
+          "Erbringung von Finanz- und Versicherungsdienstleistungen":
+            "Erbringung von Finanz und Versicherungs",
+          "Grundstücks- und Wohnungswesen": "Grundstücks und Wohnungswesen",
+          "Erbringung von freiberuflichen, wissenschaftlichen und technischen Dienstleistungen":
+            "Erbringung von freiberuflichen wissenschaftlichen",
+          "Erbringung von sonstigen wirtschaftlichen Dienstleistungen":
+            "Erbringung von sonstigen wirtschaftlichen",
+          "Öffentliche Verwaltung, Verteidigung; Sozialversicherung":
+            "Öffentliche Verwaltung Verteidigung",
+          "Erziehung und Unterricht": "Erziehung und Unterricht",
+          "Gesundheits- und Sozialwesen": "Gesundheits und Sozialwesen",
+          "Kunst, Unterhaltung und Erholung": "Kunst Unterhaltung und Erholung",
+          "Erbringung von sonstigen Dienstleistungen":
+            "Erbringung von sonstigen Dienstleistungen",
+          "Private Haushalte mit Hauspersonal":
+            "Private Haushalte mit Hauspersonal Herstellung",
+          "Exterritoriale Organisationen und Körperschaften":
+            "Exterritoriale Organisationen und Körperschaften",
+        };
+
+        // Find the matching field name and set it to "Yes"
+        const fieldName = industryMapping[data.industryCategory];
+        if (fieldName) {
+          // Type assertion to handle the indexing
+          (gmbhIndustryFields as Record<string, string>)[fieldName] = "Yes";
+        }
+      }
+
+      // Format today's date for signature for GmbH/UG
+      const gmbhFormattedDate = today.toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+
       return {
-        // Fields specific to GmbH/UG form
-        "Name des Unternehmens": commonFields["Name des Unternehmens"],
+        // Company Information
+        "Name des Unternehmens": data.companyName || "",
+        "Anschrift des Sitzes der Hauptniederlassung": `${data.street || ""} ${data.houseNumber || ""}`,
+        "Anschrift des Sitzes der Hauptniederlassung_2": `${data.postalCode || ""} ${data.city || ""}`,
         Rechtsform: data.legalForm || "",
-        Handelsregisternummer: commonFields["Handelsregisternummer"],
-        Registergericht: commonFields["Registergericht"],
-        Anschrift: commonFields["Anschrift"],
-        "Name des Ansprechpartners": commonFields["Name des Ansprechpartners"],
-        "Funktion des Ansprechpartners":
-          commonFields["Funktion des Ansprechpartners"],
-        "E-Mail des Ansprechpartners":
-          commonFields["E-Mail des Ansprechpartners"],
-        "Telefonnummer des Ansprechpartners":
-          commonFields["Telefonnummer des Ansprechpartners"],
-        Datum: commonFields["Datum"],
+        Registernummer: data.registrationNumber || "",
+
+        // Representatives - up to 4 lines
+        "Namen aller gesetzlichen Vertreter Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu":
+          contactFullName,
+        "Namen aller gesetzlichen Vertreter Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_2":
+          "",
+        "Namen aller gesetzlichen Vertreter Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_3":
+          "",
+        "Namen aller gesetzlichen Vertreter Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_4":
+          "",
+
+        // Contact information
+        "EMail Adressen": data.contactEmail || "",
+
+        // Industry categories
+        ...gmbhIndustryFields,
+
+        // Economic Beneficiaries section
+        "Die aufgeführten Personen halten unmittelbar oder …r mehr als 25 der Kapital oder Stimmrechtsanteile":
+          "Yes",
+        "Es existiert keine natürliche Person die mehr als …al oder Stimmrechtsanteilen hält Die aufgeführten":
+          "Off",
+
+        // Representative info (first row)
+        VornameRow1: data.contactFirstName || "",
+        NachnameRow1: data.contactLastName || "",
+        GeburtsdatumRow1: data.birthDate || "",
+        StaatsbürgerschaftRow1: data.nationality || "",
+
+        // PEP Status
+        Nein: data.hasPep === false ? "Yes" : "Off",
+        "Ja folgende Person folgendes Amt":
+          data.hasPep === true ? "Yes" : "Off",
+        "Person, Amt": data.pepDetails || "",
+
+        // Purpose of business relationship
+        "Bereitstellung eines Sachbezugs für voraussichtlich": "Yes",
+        Mitarbeiter: data.employeeCount || "1",
+        "Andere Bitte angeben": "Off",
+        Andere: "",
+
+        // Purpose options (default all to Yes for flexibility)
+        "bis zu 50 EUR pro Monat nach  8 Abs 2 Satz 11 EStG steuerfreier Sachbezug":
+          "Yes",
+        "bis zu 60 EUR je persönlichen Anlass nach R 196 Abs 1 LStR Aufmerksamkeiten":
+          "Yes",
+        "bis zu 10000 EUR pro Jahr nach  37b EStG pauschalversteurter Sachbezug":
+          "Yes",
+
+        // Signature
+        "Ort, Datum, Unterschrift": `${data.city || ""}, ${gmbhFormattedDate}`,
       };
 
     case "AG":
       return {
-        // Fields specific to AG form
-        "Name des Unternehmens": commonFields["Name des Unternehmens"],
-        Rechtsform: data.legalForm || "",
-        Handelsregisternummer: commonFields["Handelsregisternummer"],
-        Registergericht: commonFields["Registergericht"],
-        Anschrift: commonFields["Anschrift"],
-        "Name des Ansprechpartners": commonFields["Name des Ansprechpartners"],
-        "Funktion des Ansprechpartners":
-          commonFields["Funktion des Ansprechpartners"],
-        "E-Mail des Ansprechpartners":
-          commonFields["E-Mail des Ansprechpartners"],
-        "Telefonnummer des Ansprechpartners":
-          commonFields["Telefonnummer des Ansprechpartners"],
-        Datum: commonFields["Datum"],
+        // Company information
+        "Name des Unternehmens": data.companyName || "",
+        "Anschrift des Sitzes der Hauptniederlassung": `${data.street || ""} ${data.houseNumber || ""}`,
+        "Anschrift des Sitzes der Hauptniederlassung_2": `${data.postalCode || ""} ${data.city || ""}`,
+        Rechtsform: "AG",
+        Registernummer: data.registrationNumber || "",
+        // Representatives information (if available)
+        "Namen aller gesetzlichen Vertreter Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu":
+          data.contactFirstName && data.contactLastName
+            ? `${data.contactFirstName} ${data.contactLastName}`
+            : "",
+        "EMail Adressen": data.contactEmail || "",
+        // Stock exchange listing status
+        "Die Aktiengesellschaft ist an einem organisierten …nne von 2 Abs 11 WpHG in einem Mitgliedstaat der":
+          data.isListed === true ? "Yes" : "Off",
+        "Die Aktiengesellschaft ist nicht an einem organisierten Markt im Sinne von 2 Abs 11 WpHG notiert":
+          data.isListed === false ? "Yes" : "Off",
+        // Stock exchange selection (if listed)
+        "Frankfurter Wertpapierbörse":
+          data.stockExchange === "dax" ? "Yes" : "Off",
+        "Börse Stuttgart":
+          data.stockExchange === "börse stuttgart" ? "Yes" : "Off",
+        "Hamburger Börse":
+          data.stockExchange === "hamburger börse" ? "Yes" : "Off",
+        undefined: data.stockExchange === "other" ? "Yes" : "Off", // Strange PDF field name for "Other"
+        "Andere bitte angeben": data.otherStockExchange || "",
+        // Business relationship
+        "Bereitstellung eines Sachbezugs für voraussichtlich": "Yes",
+        Mitarbeiter: data.employeeCount || "1",
+        // Purpose options (default all to Yes for flexibility)
+        "bis zu 50 EUR pro Monat nach  8 Abs 2 Satz 11 EStG steuerfreier Sachbezug":
+          "Yes",
+        "bis zu 4 mal 60 EUR pro Jahr nach R 196 Abs 1 LStR Aufmerksamkeiten":
+          "Yes",
+        "bis zu 10000 EUR pro Jahr nach  37b EStG pauschalversteurter Sachbezug":
+          "Yes",
+        // PEP status
+        Nein: data.hasPep === false ? "Yes" : "Off",
+        "Ja folgende Person folgendes Amt":
+          data.hasPep === true ? "Yes" : "Off",
+        "Person, Amt": data.pepDetails || "",
+        // Signature
+        "Ort, Datum, Unterschrift": `${data.city || ""}, ${new Date().toLocaleDateString(
+          "de-DE",
+          {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          },
+        )}`,
       };
 
     case "GbR":
@@ -527,3 +691,40 @@ export function mapCompanyDataToDokumentationsbogen(
       };
   }
 }
+
+/**
+ * Global helper function to analyze PDF fields from the browser console
+ * Can be called directly from Chrome console
+ */
+declare global {
+  interface Window {
+    analyzePdfFields: (
+      pdfUrl: string,
+    ) => Promise<{ name: string; type: string }[] | undefined>;
+  }
+}
+
+// Make the analyze function available globally for use in Chrome console
+if (typeof window !== "undefined") {
+  window.analyzePdfFields = async (pdfUrl: string) => {
+    try {
+      console.log(`Analyzing PDF fields for: ${pdfUrl}`);
+      const fields = await analyzePdfForm(pdfUrl);
+      console.table(fields);
+      return fields;
+    } catch (error) {
+      console.error("Error analyzing PDF:", error);
+    }
+  };
+}
+
+export default {
+  loadPdfFromUrl,
+  extractPdfFieldNames,
+  analyzePdfForm,
+  fillPdfForm,
+  savePdfAsBlob,
+  downloadPdf,
+  mapCompanyDataToBestellformular,
+  mapCompanyDataToDokumentationsbogen,
+};

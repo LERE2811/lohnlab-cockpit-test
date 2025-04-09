@@ -88,8 +88,10 @@ export const OrderFormsStep = () => {
   // Get the name of the Dokumentationsbogen for display
   const getDokumentationsbogenName = () => {
     const normalizedLegalForm = getNormalizedLegalForm();
+    console.log("normalizedLegalForm", normalizedLegalForm);
 
     if (normalizedLegalForm === "GMBH" || normalizedLegalForm === "UG") {
+      console.log("Dokumentationsbogen GmbH/UG");
       return "Dokumentationsbogen GmbH/UG";
     } else if (
       normalizedLegalForm.includes("AG") &&
@@ -192,6 +194,9 @@ export const OrderFormsStep = () => {
       birthDate: onboardingData?.documents?.birthDate || "",
       birthPlace: onboardingData?.documents?.birthPlace || "",
       nationality: onboardingData?.documents?.nationality || "",
+      // PEP (Politically Exposed Person) information
+      hasPep: onboardingData?.documents?.hasPep || false,
+      pepDetails: onboardingData?.documents?.pepDetails || "",
     };
 
     console.log("Compiled form data:", formData);
@@ -500,6 +505,43 @@ export const OrderFormsStep = () => {
     }
   };
 
+  const renderFileIndicator = (
+    formType: "bestellformular" | "dokumentationsbogen",
+  ) => {
+    const isDownloaded =
+      formType === "bestellformular"
+        ? bestellFormularDownloaded
+        : dokumentationsbogenDownloaded;
+
+    const formName =
+      formType === "bestellformular"
+        ? "Bestellformular"
+        : "Dokumentationsbogen";
+
+    const fileName =
+      formType === "bestellformular"
+        ? onboardingData.documents?.orderForms?.bestellformularFileName
+        : onboardingData.documents?.orderForms?.dokumentationsbogenFileName;
+
+    if (!isDownloaded || !fileName) {
+      return null;
+    }
+
+    return (
+      <div className="mt-2 flex items-center rounded-md border border-green-200 bg-green-50 p-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-100">
+          <FileCheck className="h-4 w-4 text-green-600" />
+        </div>
+        <div className="ml-2 flex-1">
+          <p className="text-xs font-medium text-green-800">
+            {formName} heruntergeladen
+          </p>
+          <p className="text-xs text-green-700">{fileName}</p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <StepLayout
       title="Bestellformulare"
@@ -547,6 +589,7 @@ export const OrderFormsStep = () => {
                   <li>SEPA-Lastschriftmandat</li>
                 </ul>
               </div>
+              {renderFileIndicator("bestellformular")}
             </CardContent>
             <Separator />
             <CardFooter className="pt-4">
@@ -593,6 +636,7 @@ export const OrderFormsStep = () => {
                   <li>Spezifisch für Ihre Rechtsform: {legalForm}</li>
                 </ul>
               </div>
+              {renderFileIndicator("dokumentationsbogen")}
             </CardContent>
             <Separator />
             <CardFooter className="pt-4">

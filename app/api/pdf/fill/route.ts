@@ -3,6 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import { createClient } from "@/utils/supabase/server";
 import { PdfFormFiller } from "./utils/pdf-form-filler";
 import { DokumentationsbogenFiller } from "./utils/dokumentationsbogen-filler";
+import { AGDokumentationsbogenFiller } from "./utils/ag-dokumentationsbogen-filler";
 import { StorageManager } from "./utils/storage-manager";
 
 // Force Node.js runtime for pdf-lib compatibility
@@ -82,11 +83,20 @@ export async function POST(request: NextRequest) {
       (templatePath.includes("Dokumentationsbogen") ||
         templatePath.includes("dokumentationsbogen"))
     ) {
-      pdfFiller = new DokumentationsbogenFiller(
-        pdfDoc,
-        isDebugMode,
-        templatePath,
-      );
+      // Special case for AG dokumentationsbogen
+      if (templatePath.includes("AG") || formData.legalForm === "AG") {
+        pdfFiller = new AGDokumentationsbogenFiller(
+          pdfDoc,
+          isDebugMode,
+          templatePath,
+        );
+      } else {
+        pdfFiller = new DokumentationsbogenFiller(
+          pdfDoc,
+          isDebugMode,
+          templatePath,
+        );
+      }
     } else {
       pdfFiller = new PdfFormFiller(pdfDoc, isDebugMode, templatePath);
     }

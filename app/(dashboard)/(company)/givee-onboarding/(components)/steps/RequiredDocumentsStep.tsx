@@ -14,13 +14,12 @@ import { useGivveOnboarding } from "../context/givve-onboarding-context";
 import { useCompany } from "@/context/company-context";
 import { useState, useEffect } from "react";
 import {
-  GmbHForm,
+  GmbHUGForm,
   AGForm,
   OtherForm,
   GmbHCoKGForm,
   KgOhgForm,
   KdoerForm,
-  GmbHUGForm,
   PartGForm,
   VereinGenossForm,
   EkForm,
@@ -86,31 +85,35 @@ export const RequiredDocumentsStep = () => {
 
   // Initialize form data from context more thoroughly
   useEffect(() => {
-    console.log("RequiredDocumentsStep - formData changed:", formData);
     if (formData) {
       if (formData.documents) {
-        console.log(
-          "Setting documentFormData from formData.documents:",
-          formData.documents,
-        );
-        setDocumentFormData(formData.documents);
+        // Check if documents are nested in a documents sub-object
+        if (formData.documents.documents) {
+          // If we have both top-level and nested documents, merge them
+          const mergedData = {
+            ...formData.documents,
+            ...formData.documents.documents, // Flatten the nested documents to the top level
+            documents: undefined, // Remove the nested documents object to avoid conflicts
+          };
+
+          setDocumentFormData(mergedData);
+        } else {
+          // Standard case - use documents as is
+          setDocumentFormData(formData.documents);
+        }
       } else {
         // If no documents object exists yet, initialize with empty object
-        console.log("Initializing empty documentFormData");
         setDocumentFormData({});
       }
     }
   }, [formData]);
 
   const handleFormDataChange = (data: any) => {
-    console.log("handleFormDataChange called with:", data);
-
     const updatedData = {
       ...documentFormData,
       ...data,
     };
 
-    console.log("Updated documentFormData:", updatedData);
     setDocumentFormData(updatedData);
 
     // Make sure we update the formData with the document information nested correctly
@@ -144,14 +147,85 @@ export const RequiredDocumentsStep = () => {
         }
       });
 
+      // Check for both new files to upload and already uploaded files
+      const hasNewFiles = Object.keys(filesToUpload).length > 0;
+
+      // Check for existing files in the documents object
+      let hasExistingFiles = false;
+
+      // First, check if documents exist
+      if (
+        documentFormData.documents &&
+        typeof documentFormData.documents === "object"
+      ) {
+        // Look for any file metadata objects with fileName and filePath
+        console.log(
+          "Checking for existing files in documents:",
+          documentFormData.documents,
+        );
+        for (const key in documentFormData.documents) {
+          const value = documentFormData.documents[key];
+          if (
+            value &&
+            typeof value === "object" &&
+            !Array.isArray(value) &&
+            "fileName" in value &&
+            "filePath" in value
+          ) {
+            console.log("Found existing file in documents:", key, value);
+            hasExistingFiles = true;
+            break;
+          }
+        }
+      }
+
+      // If no files found in documents, check at top level
+      if (!hasExistingFiles) {
+        // Specific file keys we might expect at the top level
+        const possibleFileKeys = [
+          "handelsregister",
+          "transparenzregister",
+          "existenceProof",
+          "satzung",
+          "alternativeDocument",
+          "registerExtract",
+        ];
+
+        for (const key of possibleFileKeys) {
+          if (
+            documentFormData[key] &&
+            typeof documentFormData[key] === "object" &&
+            !Array.isArray(documentFormData[key]) &&
+            "fileName" in (documentFormData[key] as any) &&
+            "filePath" in (documentFormData[key] as any)
+          ) {
+            console.log(
+              "Found existing file at top level:",
+              key,
+              documentFormData[key],
+            );
+            hasExistingFiles = true;
+            break;
+          }
+        }
+      }
+
       // Check if this legal form requires file uploads
       const requiresFileUploads = needsFileUploads(subsidiary.legal_form);
 
+      console.log("File upload check:", {
+        hasNewFiles,
+        hasExistingFiles,
+        requiresFileUploads,
+        documentFormData,
+      });
+
       // Only validate file uploads for forms that have upload fields
-      if (requiresFileUploads && Object.keys(filesToUpload).length === 0) {
+      if (requiresFileUploads && !hasNewFiles && !hasExistingFiles) {
         toast({
           title: "Fehler",
-          description: "Bitte laden Sie mindestens ein Dokument hoch.",
+          description:
+            "Bitte laden Sie mindestens ein Dokument hoch. (Keine Dokumente gefunden)",
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -161,7 +235,7 @@ export const RequiredDocumentsStep = () => {
 
       // If there are files to upload, do so
       let uploadResults = null;
-      if (Object.keys(filesToUpload).length > 0) {
+      if (hasNewFiles) {
         uploadResults = await uploadLegalFormDocuments(
           filesToUpload,
           subsidiary.id,
@@ -232,8 +306,6 @@ export const RequiredDocumentsStep = () => {
     if (!subsidiary?.legal_form) return null;
 
     const legalForm = subsidiary.legal_form;
-    console.log("Rendering legal form component for:", legalForm);
-    console.log("With document form data:", documentFormData);
 
     const formProps = {
       onChange: handleFormDataChange,
@@ -255,7 +327,8 @@ export const RequiredDocumentsStep = () => {
         return <VereinGenossForm {...formProps} />;
       case "PartG":
         return <PartGForm {...formProps} />;
-      case "GmbH / UG":
+      case "UG":
+      case "GmbH":
         return <GmbHUGForm {...formProps} />;
       case "GmbH & Co. KG":
         return <GmbHCoKGForm {...formProps} />;
@@ -263,6 +336,8 @@ export const RequiredDocumentsStep = () => {
         return <KdoerForm {...formProps} />;
       case "KG / OHG":
         return <KgOhgForm {...formProps} />;
+      case "AG":
+        return <AGForm {...formProps} />;
       default:
         return <OtherForm {...formProps} />;
     }
