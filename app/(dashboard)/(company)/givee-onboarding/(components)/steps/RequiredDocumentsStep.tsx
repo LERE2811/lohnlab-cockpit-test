@@ -237,7 +237,7 @@ export const RequiredDocumentsStep = () => {
       let uploadResults = null;
       if (hasNewFiles) {
         uploadResults = await uploadLegalFormDocuments(
-          filesToUpload,
+          filesToUpload as any,
           subsidiary.id,
           subsidiary.legal_form,
         );
@@ -251,7 +251,7 @@ export const RequiredDocumentsStep = () => {
       const updatedDocuments = { ...documentFormData };
       if (uploadResults) {
         Object.entries(uploadResults).forEach(([key, files]) => {
-          updatedDocuments[key] = files;
+          updatedDocuments[key] = files as any;
         });
       }
 

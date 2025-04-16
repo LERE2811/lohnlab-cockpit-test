@@ -308,7 +308,7 @@ export const OrderFormsStep = () => {
       const formData = compileFormData(fullSubsidiaryData, contactsData || []);
 
       // Map the data based on form type
-      let mappedData;
+      let mappedData: any;
       if (formType === "bestellformular") {
         mappedData = mapCompanyDataToBestellformular(formData);
       } else if (formType === "dokumentationsbogen") {
