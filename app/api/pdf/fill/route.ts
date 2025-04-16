@@ -26,6 +26,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fix field names with double spaces that might be missing in the form data
+    const processedFormData = { ...formData };
+
+    // Handle special case for address field with double space
+    if (
+      formData["Anschrift des Sitzes der Hauptniederlassung"] &&
+      !formData["Anschrift des Sitzes  der Hauptniederlassung"]
+    ) {
+      // Copy the single space version to the double space version
+      processedFormData["Anschrift des Sitzes  der Hauptniederlassung"] =
+        formData["Anschrift des Sitzes der Hauptniederlassung"];
+
+      console.log(
+        "Fixed address field with double space:",
+        processedFormData["Anschrift des Sitzes  der Hauptniederlassung"],
+      );
+    }
+
+    // Also ensure mainOfficeAddress is available if needed
+    if (formData.mainOfficeAddress) {
+      processedFormData["Anschrift des Sitzes  der Hauptniederlassung"] =
+        formData.mainOfficeAddress;
+    }
+
     // Get template URL
     let templateUrl;
     try {
@@ -104,9 +128,9 @@ export async function POST(request: NextRequest) {
     try {
       console.log(
         "Form data being sent to PDF filler:",
-        JSON.stringify(formData, null, 2),
+        JSON.stringify(processedFormData, null, 2),
       );
-      await pdfFiller.fillForm(formData);
+      await pdfFiller.fillForm(processedFormData);
     } catch (fillError: any) {
       console.error("Error filling PDF form:", fillError);
 
@@ -120,7 +144,7 @@ export async function POST(request: NextRequest) {
           error: "Server-side filling failed",
           details: fillError.message,
           templateUrl,
-          fieldValues: formData,
+          fieldValues: processedFormData,
         });
       }
 

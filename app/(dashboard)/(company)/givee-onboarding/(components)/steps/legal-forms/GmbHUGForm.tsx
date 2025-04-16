@@ -274,14 +274,24 @@ export const GmbHUGForm = ({
                 id="mainOfficeAddress"
                 placeholder="z.B. Musterstraße 121, 12345 Musterstadt"
                 value={formData.mainOfficeAddress || ""}
-                onChange={(e) =>
-                  handleFieldChange("mainOfficeAddress", e.target.value)
-                }
+                onChange={(e) => {
+                  // Send the updated value directly to parent to ensure it's available
+                  // properly structured data for PDF filling
+                  const addressValue = e.target.value;
+                  onFieldsChange({
+                    ...formData,
+                    mainOfficeAddress: addressValue,
+                    // Add direct field mapping for the PDF form
+                    "Anschrift des Sitzes  der Hauptniederlassung":
+                      addressValue,
+                  });
+                }}
                 className="mt-1.5"
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 Bitte geben Sie die vollständige Adresse im Format "Straße
-                Hausnummer, PLZ Ort" an.
+                Hausnummer, PLZ Ort" an. Dieses Feld wird für "Anschrift des
+                Sitzes der Hauptniederlassung" im Dokument verwendet.
               </p>
             </div>
 

@@ -21,6 +21,12 @@ export class PdfFormFiller {
 
   async fillForm(fieldValues: PdfFormData): Promise<void> {
     try {
+      // Print out all field values for debugging
+      console.log(
+        "All field values being processed:",
+        JSON.stringify(fieldValues, null, 2),
+      );
+
       const form = this.pdfDoc.getForm();
       const fields = form.getFields();
       const isVercelEnvironment = process.env.VERCEL === "1";
@@ -28,9 +34,109 @@ export class PdfFormFiller {
       // Map fields to their types
       const fieldMap = new Map();
 
+      // Log all fields to help with debugging
+      console.log("All fields in PDF form:");
       for (const field of fields) {
         const fieldName = field.getName();
+        console.log(`Field: '${fieldName}'`);
         fieldMap.set(fieldName, this.determineFieldType(field, fieldName));
+
+        // Log all field names in debug mode to help with troubleshooting
+        if (this.isDebugMode) {
+          console.log(
+            `PDF Form Field: '${fieldName}' (${this.determineFieldType(field, fieldName)})`,
+          );
+        }
+      }
+
+      // Add special handling for double space fields
+      // Check if we have a special address field that needs double space handling
+      if (fieldValues.mainOfficeAddress) {
+        // Handle the double space field explicitly
+        const doubleSpaceFieldName =
+          "Anschrift des Sitzes  der Hauptniederlassung";
+        const exactFieldName = "Anschrift des Sitzes  der Hauptniederlassung";
+
+        try {
+          console.log(
+            `Attempting to fill double space field '${doubleSpaceFieldName}' with value: '${fieldValues.mainOfficeAddress}'`,
+          );
+
+          // Attempt various approaches
+          try {
+            // Approach 1: Use direct field access
+            const allFields = form.getFields();
+            const matchingField = allFields.find(
+              (f) => f.getName() === exactFieldName,
+            );
+
+            if (matchingField) {
+              console.log(`Found matching field: ${matchingField.getName()}`);
+              (matchingField as any).setText(fieldValues.mainOfficeAddress);
+              console.log("Method 1: Set value using direct field access");
+            } else {
+              console.log(`No exact match found for: '${exactFieldName}'`);
+            }
+          } catch (e1) {
+            console.warn("Method 1 failed:", e1);
+
+            // Approach 2: Get all text fields and try pattern matching
+            try {
+              const allFields = form.getFields();
+              const textFields = allFields.filter((f) =>
+                f.constructor.name.includes("PDFTextField"),
+              );
+
+              console.log(
+                "All text fields:",
+                textFields.map((f) => f.getName()),
+              );
+
+              const addressFields = textFields.filter(
+                (f) =>
+                  f.getName().includes("Anschrift") &&
+                  f.getName().includes("Sitzes") &&
+                  f.getName().includes("Hauptniederlassung"),
+              );
+
+              if (addressFields.length > 0) {
+                for (const field of addressFields) {
+                  try {
+                    console.log(
+                      `Trying to fill address field: ${field.getName()}`,
+                    );
+                    (field as any).setText(fieldValues.mainOfficeAddress);
+                    console.log(
+                      `Method 2: Successfully set address field: ${field.getName()}`,
+                    );
+                  } catch (innerError) {
+                    console.warn(
+                      `Failed to set ${field.getName()}:`,
+                      innerError,
+                    );
+                  }
+                }
+              } else {
+                console.log("No address fields found with pattern matching");
+              }
+            } catch (e2) {
+              console.warn("Method 2 failed:", e2);
+            }
+
+            // Approach 3: Direct form API call with exact field name
+            try {
+              const textField = form.getTextField(exactFieldName);
+              textField.setText(fieldValues.mainOfficeAddress);
+              console.log(
+                `Method 3: Successfully set field using getTextField API`,
+              );
+            } catch (e3) {
+              console.warn("Method 3 failed:", e3);
+            }
+          }
+        } catch (e) {
+          console.warn(`All methods failed for double space field:`, e);
+        }
       }
 
       // Count for statistics

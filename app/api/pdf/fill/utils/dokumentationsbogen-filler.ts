@@ -17,8 +17,8 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
     "Andere",
     "Ort, Datum, Unterschrift",
     "Rechtsform",
-    "Anschrift des Sitzes der Hauptniederlassung",
-    "Anschrift des Sitzes der Hauptniederlassung_2",
+    "Anschrift des Sitzes  der Hauptniederlassung",
+    "Anschrift des Sitzes  der Hauptniederlassung_2",
     "Registernummer",
     "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu",
     "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_2",
@@ -99,11 +99,86 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
 
   async fillForm(fieldValues: PdfFormData): Promise<void> {
     try {
+      console.log(
+        "DokumentationsbogenFiller received values:",
+        JSON.stringify(fieldValues, null, 2),
+      );
+
       const form = this.getPdfDoc().getForm();
       let filledFieldsCount = 0;
 
-      // Get all form fields for fuzzy matching
+      // Get all form fields
       const allFields = form.getFields();
+
+      // Log field names and values for debugging
+      console.log(
+        "PDF Field names in document:",
+        allFields.map((f) => f.getName()),
+      );
+
+      // CRITICAL FIX: Handle the address field with double space first
+      const addressDoubleSpaceKey =
+        "Anschrift des Sitzes  der Hauptniederlassung";
+
+      // Find the best address value to use
+      const addressValue =
+        fieldValues[addressDoubleSpaceKey] ||
+        fieldValues["Anschrift des Sitzes der Hauptniederlassung"] ||
+        fieldValues.mainOfficeAddress;
+
+      if (addressValue) {
+        console.log(`Setting address field with value: "${addressValue}"`);
+
+        try {
+          // Get the field directly using the exact name with double space
+          const addressField = form.getTextField(addressDoubleSpaceKey);
+          addressField.setText(addressValue);
+          console.log(
+            `Successfully set address field: ${addressDoubleSpaceKey}`,
+          );
+          filledFieldsCount++;
+        } catch (e) {
+          console.warn(`Failed to set address field directly:`, e);
+
+          // Fallback: find the field by searching all text fields
+          try {
+            const textFields = allFields.filter((f) =>
+              f.constructor.name.includes("PDFTextField"),
+            );
+
+            // Find any field containing Hauptniederlassung
+            const addressFields = textFields.filter((f) =>
+              f.getName().includes("Hauptniederlassung"),
+            );
+
+            console.log(
+              "Found address fields:",
+              addressFields.map((f) => f.getName()),
+            );
+
+            if (addressFields.length > 0) {
+              // Try to set each one
+              for (const field of addressFields) {
+                try {
+                  console.log(`Attempting to set ${field.getName()}`);
+                  (field as any).setText(addressValue);
+                  console.log(
+                    `Successfully set fallback address field: ${field.getName()}`,
+                  );
+                  filledFieldsCount++;
+                } catch (fieldError) {
+                  console.warn(
+                    `Failed to set field ${field.getName()}:`,
+                    fieldError,
+                  );
+                }
+              }
+            }
+          } catch (fallbackError) {
+            console.warn("All address field fallbacks failed:", fallbackError);
+          }
+        }
+      }
 
       // First attempt exact matches for TEXT_FIELDS
       for (const fieldName of DokumentationsbogenFiller.TEXT_FIELDS) {
@@ -160,34 +235,55 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
       // Special handling for address fields with double spaces
       if (fieldValues.mainOfficeAddress) {
         try {
-          // Try with different possible field name variations for address
-          const addressFieldPatterns = [
-            "Anschrift des Sitzes der Hauptniederlassung",
-            "Anschrift des Sitzes  der Hauptniederlassung",
-            "Anschrift des Sitzes der",
-          ];
+          console.log(
+            "Attempting to fill main office address:",
+            fieldValues.mainOfficeAddress,
+          );
 
-          for (const pattern of addressFieldPatterns) {
-            const matchingFields = allFields.filter(
-              (field) =>
-                field.constructor.name.includes("PDFTextField") &&
-                field.getName().includes(pattern),
+          // First try direct approach with the specific field name with double space
+          try {
+            const field = form.getTextField(
+              "Anschrift des Sitzes  der Hauptniederlassung",
+            );
+            field.setText(fieldValues.mainOfficeAddress);
+            console.log("Successfully filled address field with double space");
+            filledFieldsCount++;
+          } catch (e) {
+            console.warn("Direct approach with double space failed:", e);
+
+            // If the direct approach failed, try another approach with all text fields
+            const allTextFields = allFields.filter((field) =>
+              field.constructor.name.includes("PDFTextField"),
             );
 
-            for (const field of matchingFields) {
+            console.log(
+              "All text fields in form:",
+              allTextFields.map((f) => f.getName()),
+            );
+
+            // Try to match with any field containing the address keywords
+            const addressField = allTextFields.find((field) => {
+              const name = field.getName();
+              return (
+                name.includes("Anschrift") &&
+                name.includes("Sitzes") &&
+                name.includes("Hauptniederlassung")
+              );
+            });
+
+            if (addressField) {
               try {
-                (field as any).setText(fieldValues.mainOfficeAddress);
-                console.log(
-                  `Successfully filled address field ${field.getName()} with: ${fieldValues.mainOfficeAddress}`,
-                );
+                console.log(`Found address field: ${addressField.getName()}`);
+                (addressField as any).setText(fieldValues.mainOfficeAddress);
+                console.log("Successfully filled address field");
                 filledFieldsCount++;
-                break;
-              } catch (addrError) {
+              } catch (fieldError) {
                 console.warn(
-                  `Failed to set address field ${field.getName()}:`,
-                  addrError,
+                  `Failed to set matched address field: ${fieldError}`,
                 );
               }
+            } else {
+              console.warn("Could not find any matching address field");
             }
           }
         } catch (e) {

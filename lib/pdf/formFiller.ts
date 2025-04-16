@@ -281,6 +281,25 @@ export function mapCompanyDataToDokumentationsbogen(
   const fullAddress = `${data.street || ""} ${data.houseNumber || ""}, ${data.postalCode || ""} ${data.city || ""}`;
   const contactFullName = `${data.contactFirstName || ""} ${data.contactLastName || ""}`;
 
+  // Add mainOfficeAddress to field values directly
+  const mainOfficeAddress = data.mainOfficeAddress || fullAddress;
+
+  // Log mapping for debugging
+  console.log("Mapping address for Dokumentationsbogen:", {
+    mainOfficeAddress,
+    fullAddress,
+    doubleSpaceKey: "Anschrift des Sitzes  der Hauptniederlassung",
+  });
+
+  // Function to ensure double space field is handled correctly
+  const addAddressField = (obj: Record<string, string>) => {
+    // Add double-space field explicitly
+    obj["Anschrift des Sitzes  der Hauptniederlassung"] = mainOfficeAddress;
+    // Also add mainOfficeAddress as a direct field
+    obj.mainOfficeAddress = mainOfficeAddress;
+    return obj;
+  };
+
   // Format today's date
   const today = new Date();
   const formattedDate = today.toLocaleDateString("de-DE", {
@@ -299,7 +318,8 @@ export function mapCompanyDataToDokumentationsbogen(
     Firmenname: data.companyName || "",
 
     // Address information
-    Anschrift: data.mainOfficeAddress || fullAddress,
+    Anschrift: mainOfficeAddress,
+    mainOfficeAddress: mainOfficeAddress, // Add this explicitly for the DokumentationsbogenFiller
     "Straße und Hausnummer": `${data.street || ""} ${data.houseNumber || ""}`,
     "Postleitzahl und Ort": `${data.postalCode || ""} ${data.city || ""}`,
 
@@ -451,7 +471,7 @@ export function mapCompanyDataToDokumentationsbogen(
         "Ort, Datum, Unterschrift": `${data.city || ""}, ${formattedDate}`,
       };
 
-      return result;
+      return addAddressField(result);
 
     case "GmbH":
     case "UG":
@@ -578,15 +598,9 @@ export function mapCompanyDataToDokumentationsbogen(
         year: "numeric",
       });
 
-      return {
+      const gmbhFields = {
         // Company Information
-        "Name des Unternehmens": data.subsidiaryName || "",
-        "Anschrift des Sitzes der Hauptniederlassung":
-          data.mainOfficeAddress ||
-          `${data.street || ""} ${data.houseNumber || ""}`,
-        "Anschrift des Sitzes der Hauptniederlassung_2": data.mainOfficeAddress
-          ? ""
-          : `${data.postalCode || ""} ${data.city || ""}`,
+        "Name des Unternehmens": data.subsidiaryName || data.companyName || "",
         Rechtsform: data.legalForm || "",
         Registernummer: data.registrationNumber || "",
 
@@ -686,12 +700,14 @@ export function mapCompanyDataToDokumentationsbogen(
         "Ort, Datum, Unterschrift": `${data.city || ""}, ${gmbhFormattedDate}`,
       };
 
+      return addAddressField(gmbhFields);
+
     case "AG":
       return {
         // Company information
         "Name des Unternehmens": data.companyName || "",
-        "Anschrift des Sitzes der Hauptniederlassung": `${data.street || ""} ${data.houseNumber || ""}`,
-        "Anschrift des Sitzes der Hauptniederlassung_2": `${data.postalCode || ""} ${data.city || ""}`,
+        "Anschrift des Sitzes  der Hauptniederlassung": `${data.street || ""} ${data.houseNumber || ""}`,
+        "Anschrift des Sitzes  der Hauptniederlassung_2": `${data.postalCode || ""} ${data.city || ""}`,
         Rechtsform: "AG",
         Registernummer: data.registrationNumber || "",
         // Representatives information (if available)
