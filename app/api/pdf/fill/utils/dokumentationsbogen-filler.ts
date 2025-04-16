@@ -1,8 +1,10 @@
 import { PDFDocument } from "pdf-lib";
 import { PdfFormFiller, PdfFormData } from "./pdf-form-filler";
+import { PDFTextField, PDFField } from "pdf-lib";
 
 export class DokumentationsbogenFiller extends PdfFormFiller {
   private static readonly TEXT_FIELDS = [
+    "Name des Unternehmens",
     "Vornamen und Nachname",
     "Geburtsdatum",
     "Geburtsort",
@@ -14,12 +16,43 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
     "Mitarbeiter",
     "Andere",
     "Ort, Datum, Unterschrift",
+    "Rechtsform",
+    "Anschrift des Sitzes der Hauptniederlassung",
+    "Anschrift des Sitzes der Hauptniederlassung_2",
+    "Registernummer",
+    "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu",
+    "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_2",
+    "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_3",
+    "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_4",
+    "EMail Adressen",
+    "VornameRow1",
+    "NachnameRow1",
+    "GeburtsdatumRow1",
+    "StaatsbürgerschaftRow1",
+    "VornameRow2",
+    "NachnameRow2",
+    "GeburtsdatumRow2",
+    "StaatsbürgerschaftRow2",
+    "VornameRow3",
+    "NachnameRow3",
+    "GeburtsdatumRow3",
+    "StaatsbürgerschaftRow3",
+    "VornameRow4",
+    "NachnameRow4",
+    "GeburtsdatumRow4",
+    "StaatsbürgerschaftRow4",
+    "VornameRow5",
+    "NachnameRow5",
+    "GeburtsdatumRow5",
+    "StaatsbürgerschaftRow5",
   ];
 
   private static readonly STANDARD_CHECKBOXES = [
     "Nein",
     "Ja folgende Person folgendes Amt",
     "bis zu 10000 EUR pro Jahr nach  37b EStG pauschalversteurter Sachbezug",
+    "Die aufgeführten Personen halten unmittelbar oder …r mehr als 25 der Kapital oder Stimmrechtsanteile",
+    "Es existiert keine natürliche Person die mehr als …al oder Stimmrechtsanteilen hält Die aufgeführten",
   ];
 
   private static readonly SPECIAL_FIELDS = [
@@ -69,7 +102,10 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
       const form = this.getPdfDoc().getForm();
       let filledFieldsCount = 0;
 
-      // Fill text fields
+      // Get all form fields for fuzzy matching
+      const allFields = form.getFields();
+
+      // First attempt exact matches for TEXT_FIELDS
       for (const fieldName of DokumentationsbogenFiller.TEXT_FIELDS) {
         if (fieldValues[fieldName]) {
           try {
@@ -77,8 +113,273 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
             field.setText(fieldValues[fieldName]);
             filledFieldsCount++;
           } catch (e) {
-            console.warn(`Failed to set text field ${fieldName}:`, e);
+            console.warn(
+              `Failed to set text field ${fieldName} with exact match:`,
+              e,
+            );
+
+            // Try fuzzy matching if exact match fails
+            try {
+              // Normalize field name for fuzzy matching (remove extra spaces, lowercase)
+              const normalizedFieldName = fieldName
+                .replace(/\s+/g, " ")
+                .trim()
+                .toLowerCase();
+
+              // Find fields with similar names
+              const fuzzyMatches = allFields.filter((field) => {
+                if (!field.constructor.name.includes("PDFTextField"))
+                  return false;
+                const currentName = field
+                  .getName()
+                  .replace(/\s+/g, " ")
+                  .trim()
+                  .toLowerCase();
+                return (
+                  currentName.includes(normalizedFieldName) ||
+                  normalizedFieldName.includes(currentName)
+                );
+              });
+
+              if (fuzzyMatches.length > 0) {
+                // Use the first match
+                const matchedField = fuzzyMatches[0];
+                console.log(
+                  `Found fuzzy match for ${fieldName}: ${matchedField.getName()}`,
+                );
+                (matchedField as any).setText(fieldValues[fieldName]);
+                filledFieldsCount++;
+              }
+            } catch (fuzzyError) {
+              console.warn(`Failed fuzzy match for ${fieldName}:`, fuzzyError);
+            }
           }
+        }
+      }
+
+      // Special handling for address fields with double spaces
+      if (fieldValues.mainOfficeAddress) {
+        try {
+          // Try with different possible field name variations for address
+          const addressFieldPatterns = [
+            "Anschrift des Sitzes der Hauptniederlassung",
+            "Anschrift des Sitzes  der Hauptniederlassung",
+            "Anschrift des Sitzes der",
+          ];
+
+          for (const pattern of addressFieldPatterns) {
+            const matchingFields = allFields.filter(
+              (field) =>
+                field.constructor.name.includes("PDFTextField") &&
+                field.getName().includes(pattern),
+            );
+
+            for (const field of matchingFields) {
+              try {
+                (field as any).setText(fieldValues.mainOfficeAddress);
+                console.log(
+                  `Successfully filled address field ${field.getName()} with: ${fieldValues.mainOfficeAddress}`,
+                );
+                filledFieldsCount++;
+                break;
+              } catch (addrError) {
+                console.warn(
+                  `Failed to set address field ${field.getName()}:`,
+                  addrError,
+                );
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fill address fields:", e);
+        }
+      }
+
+      // Handle representative fields specially - ignore exceptions and try multiple methods
+      if (
+        fieldValues.representatives &&
+        Array.isArray(fieldValues.representatives)
+      ) {
+        try {
+          // Log all field values for debugging
+          console.log(
+            "Trying to fill representatives with values:",
+            fieldValues.representatives,
+          );
+
+          // Define all possible field name patterns for representatives
+          const exactRepFieldPatterns = [
+            // Pattern 1: With double spaces between words
+            [
+              "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu",
+              "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_2",
+              "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_3",
+              "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_4",
+            ],
+            // Other patterns removed since we now have the exact field names
+          ];
+
+          // Find all text fields using the normal API first
+          const allTextFields = allFields.filter((field) =>
+            field.constructor.name.includes("PDFTextField"),
+          );
+
+          // Extract all representative-like fields from document
+          const repFieldsInDoc = allTextFields.filter((field) => {
+            const name = field.getName();
+            return (
+              name.includes("Namen aller gesetzlichen Vertreter") ||
+              name.includes("gesetzlichen Vertreter")
+            );
+          });
+
+          console.log(
+            "Representative-like fields found in document:",
+            repFieldsInDoc.map((f) => f.getName()),
+          );
+
+          // First try to match each representative with a specific field
+          let matchedFields: number = 0;
+
+          // Attempt to fill each representative field directly - try all pattern variations
+          for (
+            let i = 0;
+            i < Math.min(4, fieldValues.representatives.length);
+            i++
+          ) {
+            if (fieldValues.representatives[i]) {
+              const value = fieldValues.representatives[i];
+              let fieldFilled = false;
+
+              console.log(
+                `Trying to fill representative ${i + 1} with value: ${value}`,
+              );
+
+              // Try each field pattern until one works
+              for (const pattern of exactRepFieldPatterns) {
+                if (fieldFilled) break;
+
+                const fieldName = pattern[i];
+                console.log(`Attempting pattern: ${fieldName}`);
+
+                // Method 1: Try standard form API
+                try {
+                  const field = form.getTextField(fieldName);
+                  field.setText(value);
+                  console.log(
+                    `Successfully filled representative field ${fieldName} using standard method`,
+                  );
+                  filledFieldsCount++;
+                  matchedFields++;
+                  fieldFilled = true;
+                  continue;
+                } catch (e) {
+                  console.warn(
+                    `Failed with standard setText for ${fieldName}: ${e}`,
+                  );
+                }
+
+                // Method 2: Try direct field search
+                try {
+                  const matchedField = allTextFields.find(
+                    (f) => f.getName() === fieldName,
+                  );
+                  if (matchedField) {
+                    (matchedField as PDFTextField).setText(value);
+                    console.log(
+                      `Successfully filled representative field ${fieldName} using direct field access`,
+                    );
+                    filledFieldsCount++;
+                    matchedFields++;
+                    fieldFilled = true;
+                    continue;
+                  }
+                } catch (e) {
+                  console.warn(
+                    `Failed with direct field access for ${fieldName}: ${e}`,
+                  );
+                }
+              }
+
+              // If we couldn't fill this field with any of the patterns, try fuzzy matching
+              if (!fieldFilled) {
+                // Method 3: Try fuzzy matching field name for this position
+                try {
+                  // Find a field with similar name that might match this position
+                  const fuzzyField = allTextFields.find((field) => {
+                    const name = field.getName();
+                    const isMatchingPosition =
+                      i === 0
+                        ? !name.includes("_") &&
+                          name.includes("Namen aller gesetzlichen Vertreter")
+                        : name.includes(`_${i + 1}`) &&
+                          name.includes("gesetzlichen Vertreter");
+                    return isMatchingPosition;
+                  });
+
+                  if (fuzzyField) {
+                    console.log(
+                      `Found fuzzy match for rep ${i + 1}: ${fuzzyField.getName()}`,
+                    );
+                    const textField = fuzzyField as PDFTextField;
+                    textField.setText(value);
+                    console.log(
+                      `Successfully filled representative with fuzzy match`,
+                    );
+                    filledFieldsCount++;
+                    matchedFields++;
+                    fieldFilled = true;
+                  }
+                } catch (e) {
+                  console.warn(
+                    `Failed with fuzzy match for position ${i + 1}: ${e}`,
+                  );
+                }
+              }
+            }
+          }
+
+          // If we couldn't match all representatives to their expected fields,
+          // try to fill any remaining fields with the remaining representatives
+          if (
+            matchedFields <
+            Math.min(repFieldsInDoc.length, fieldValues.representatives.length)
+          ) {
+            console.log(
+              "Some representatives couldn't be matched to expected fields, trying remaining fields",
+            );
+
+            // Create a copy of the remaining representatives to fill
+            const remainingReps = [...fieldValues.representatives].slice(
+              matchedFields,
+            );
+
+            // Method 4: Try to find any unfilled representative field
+            try {
+              let repIndex = 0;
+              for (const repField of repFieldsInDoc) {
+                if (repIndex >= remainingReps.length) break;
+
+                try {
+                  const value = remainingReps[repIndex];
+                  (repField as PDFTextField).setText(value);
+                  console.log(
+                    `Set ${repField.getName()} to ${value} as fallback`,
+                  );
+                  filledFieldsCount++;
+                  repIndex++;
+                } catch (repError) {
+                  console.warn(
+                    `Failed to set field ${repField.getName()}: ${repError}`,
+                  );
+                }
+              }
+            } catch (e) {
+              console.warn(`Failed with fallback field assignment: ${e}`);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fill representative fields:", e);
         }
       }
 
@@ -116,6 +417,15 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
         }
       }
 
+      // Handle economic beneficiaries - always set for GmbH/UG
+      try {
+        // Try with both possible field names for this checkbox
+        await this.setEconomicBeneficiariesFields(form);
+        filledFieldsCount++;
+      } catch (e) {
+        console.warn("Failed to set economic beneficiaries field:", e);
+      }
+
       if (filledFieldsCount === 0) {
         throw new Error("Could not fill any fields in Dokumentationsbogen");
       }
@@ -127,6 +437,46 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
       throw new Error(
         `Dokumentationsbogen filling failed: ${error.message || error}`,
       );
+    }
+  }
+
+  private async setEconomicBeneficiariesFields(form: any): Promise<void> {
+    // These are the possible field names that might be used in different PDF versions
+    const noPersonFieldNames = [
+      "Es existiert keine natürliche Person die mehr als …al oder Stimmrechtsanteilen hält Die aufgeführten",
+      "Es existiert keine natürliche Person die mehr als 25 der Kapital oder Stimmrechtsanteilen hält Die aufgeführten",
+    ];
+
+    const personHoldsFieldNames = [
+      "Die aufgeführten Personen halten unmittelbar oder …r mehr als 25 der Kapital oder Stimmrechtsanteile",
+      "Die aufgeführten Personen halten unmittelbar oder mittelbar mehr als 25 der Kapital oder Stimmrechtsanteile",
+    ];
+
+    // Try to find and check the first field name that exists
+    let checkboxFound = false;
+
+    // Try to check "No person holds more than 25%" box
+    for (const fieldName of noPersonFieldNames) {
+      try {
+        const field = form.getCheckBox(fieldName);
+        field.check();
+        checkboxFound = true;
+        break;
+      } catch (e) {
+        // Field not found, try next
+      }
+    }
+
+    if (checkboxFound) {
+      // If we found and checked the first checkbox, uncheck the other one
+      for (const fieldName of personHoldsFieldNames) {
+        try {
+          const field = form.getCheckBox(fieldName);
+          field.uncheck();
+        } catch (e) {
+          // Field not found, continue
+        }
+      }
     }
   }
 
@@ -176,5 +526,224 @@ export class DokumentationsbogenFiller extends PdfFormFiller {
       // General method error
     }
     return 0;
+  }
+
+  // Helper to filter to just text fields, since those are the ones we can set text on
+  private getTextFields(form: any): PDFTextField[] {
+    return form.getFields().filter((field: PDFField) => {
+      return field.constructor.name === "PDFTextField";
+    }) as PDFTextField[];
+  }
+
+  async fillDocument(
+    pdfDoc: PDFDocument,
+    data: any,
+  ): Promise<{ filledFields: number }> {
+    try {
+      const form = pdfDoc.getForm();
+
+      // Filter to just text fields since those are the ones we can set
+      const textFields = this.getTextFields(form);
+
+      // Log all field names for debugging
+      console.log(
+        "Fields in doc:",
+        textFields.map((f) => f.getName()),
+      );
+
+      let filledFieldsCount = 0;
+
+      // For each company representative
+      if (data.representatives && Array.isArray(data.representatives)) {
+        // This is a 1-based index in the form field names
+        let repIndex = 1;
+
+        for (const rep of data.representatives) {
+          if (repIndex > 3) {
+            console.log("Only 3 representatives supported in form");
+            break;
+          }
+
+          console.log(`Processing representative ${repIndex}:`, rep);
+
+          // Get representative name, role and address
+          const lastName = rep.lastName || "";
+          const firstName = rep.firstName || "";
+          const displayName = `${firstName} ${lastName}`.trim();
+          const role = rep.title || "";
+
+          // Get full address
+          const addressParts = [];
+          if (rep.street) addressParts.push(rep.street);
+          if (rep.streetNumber) addressParts.push(rep.streetNumber);
+          if (rep.zipCode || rep.city) {
+            const zipCity = [rep.zipCode, rep.city].filter(Boolean).join(" ");
+            if (zipCity) addressParts.push(zipCity);
+          }
+          const fullAddress = addressParts.join(", ");
+
+          // Get all representative related fields that exist in this document
+          const repFieldsInDoc = textFields.filter((field) => {
+            const fieldName = field.getName();
+            return (
+              fieldName.includes("Vertretungs") ||
+              fieldName.includes("Vertreter")
+            );
+          });
+
+          if (repFieldsInDoc.length > 0) {
+            console.log(
+              `Found ${repFieldsInDoc.length} rep fields in document`,
+            );
+          } else {
+            console.log("No representative fields found in document");
+          }
+
+          // For each possible field value
+          for (const [fieldName, value] of Object.entries({
+            name: displayName,
+            role: role,
+            address: fullAddress,
+          })) {
+            if (!value) continue;
+
+            console.log(`Trying to set ${fieldName} = ${value}`);
+
+            // Method 1: Try standard form API with exact fields
+            try {
+              // Exact field names based on reverse engineering
+              const exactFieldNames = {
+                name: [
+                  `Vertretungsberechtigte Person ${repIndex}`,
+                  `Vertreter${repIndex}_Name`,
+                  `VertretungsberechtigtePerson${repIndex}`,
+                ],
+                role: [
+                  `Funktion ${repIndex}`,
+                  `Vertreter${repIndex}_Funktion`,
+                  `Funktion${repIndex}`,
+                ],
+                address: [
+                  `Anschrift ${repIndex}`,
+                  `Vertreter${repIndex}_Anschrift`,
+                  `Anschrift${repIndex}`,
+                ],
+              };
+
+              const possibleFieldNames =
+                exactFieldNames[fieldName as keyof typeof exactFieldNames] ||
+                [];
+              let exactFieldSuccess = false;
+
+              for (const exactName of possibleFieldNames) {
+                try {
+                  const field = textFields.find(
+                    (f) => f.getName() === exactName,
+                  );
+                  if (field) {
+                    field.setText(value);
+                    console.log(`Set ${exactName} to ${value}`);
+                    filledFieldsCount++;
+                    exactFieldSuccess = true;
+
+                    // Remove this field from future consideration
+                    const index = repFieldsInDoc.indexOf(field);
+                    if (index > -1) {
+                      repFieldsInDoc.splice(index, 1);
+                    }
+
+                    break;
+                  }
+                } catch (fieldError) {
+                  console.warn(
+                    `Failed with exact field ${exactName}: ${fieldError}`,
+                  );
+                }
+              }
+
+              if (exactFieldSuccess) {
+                continue; // Skip to next field if exact matching worked
+              }
+            } catch (e) {
+              console.warn(`Failed with exact fields for ${fieldName}: ${e}`);
+            }
+
+            // Method 2: Try fuzzy matching field names
+            try {
+              // Search for fields containing the fieldName
+              const matchingFields = textFields.filter((field) => {
+                const name = field.getName().toLowerCase();
+                const searchTerm = fieldName.toLowerCase();
+                return name.includes(searchTerm);
+              });
+
+              let fuzzyMatchSuccess = false;
+
+              for (const field of matchingFields) {
+                try {
+                  field.setText(value);
+                  console.log(
+                    `Set ${field.getName()} to ${value} via fuzzy match`,
+                  );
+                  filledFieldsCount++;
+                  fuzzyMatchSuccess = true;
+
+                  // Remove this field from future consideration
+                  const index = repFieldsInDoc.indexOf(field);
+                  if (index > -1) {
+                    repFieldsInDoc.splice(index, 1);
+                  }
+
+                  break;
+                } catch (fieldError) {
+                  console.warn(
+                    `Failed with fuzzy match field ${field.getName()}: ${fieldError}`,
+                  );
+                }
+              }
+
+              if (fuzzyMatchSuccess) {
+                continue; // Skip to next field if fuzzy matching worked
+              }
+            } catch (e) {
+              console.warn(`Failed with fuzzy matching for ${fieldName}: ${e}`);
+            }
+
+            // Method 3: Try to find any unfilled representative field
+            try {
+              if (repFieldsInDoc.length > 0) {
+                // Try each rep field in order until one succeeds
+                for (const repField of repFieldsInDoc) {
+                  try {
+                    repField.setText(value);
+                    console.log(`Set ${repField.getName()} to ${value}`);
+                    filledFieldsCount++;
+
+                    // Remove this field from future consideration
+                    const index = repFieldsInDoc.indexOf(repField);
+                    if (index > -1) {
+                      repFieldsInDoc.splice(index, 1);
+                    }
+
+                    break; // Found a field that worked, stop trying more
+                  } catch (repError) {
+                    // Keep trying other fields
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn(`Failed with any rep field for ${fieldName}: ${e}`);
+            }
+          }
+
+          repIndex++;
+        }
+      }
+
+      return { filledFields: filledFieldsCount };
+    } catch (e) {
+      console.error("Error filling Dokumentationsbogen:", e);
+      return { filledFields: 0 };
+    }
   }
 }

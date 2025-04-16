@@ -158,9 +158,12 @@ export const OrderFormsStep = () => {
       companyName: company?.name || "",
       subsidiaryName: subData?.name || "",
       legalForm: subData?.legal_form || "",
-      registrationNumber: subData?.commercial_register_number || "",
+      registrationNumber:
+        onboardingData?.documents?.registrationNumber ||
+        subData?.commercial_register_number ||
+        "",
       registrationOffice: subData?.commercial_register || "",
-      // Use headquarters fields for address information or data from documents if available
+      // Address information
       street:
         onboardingData?.documents?.street || subData?.headquarters_street || "",
       houseNumber:
@@ -172,6 +175,14 @@ export const OrderFormsStep = () => {
         subData?.headquarters_postal_code ||
         "",
       city: onboardingData?.documents?.city || subData?.headquarters_city || "",
+      // Main office address in combined format for Dokumentationsbogen
+      mainOfficeAddress: onboardingData?.documents?.mainOfficeAddress || "",
+      // Legal representatives for Dokumentationsbogen
+      representatives: onboardingData?.documents?.representatives || [],
+      // Beneficial owners for Dokumentationsbogen
+      beneficialOwners: onboardingData?.documents?.beneficialOwners || [],
+      // Representative email for VideoIdent
+      representativeEmail: onboardingData?.documents?.representativeEmail || "",
       // Contact information - try to use data from documents first
       contactFirstName:
         onboardingData?.documents?.firstName || selectedContact.firstname || "",
@@ -301,10 +312,45 @@ export const OrderFormsStep = () => {
       if (formType === "bestellformular") {
         mappedData = mapCompanyDataToBestellformular(formData);
       } else if (formType === "dokumentationsbogen") {
+        // Debug: log representatives before mapping
+        console.log(
+          "Representatives before mapping:",
+          formData.representatives,
+        );
+
+        // Log the contents of each representative field
+        if (
+          formData.representatives &&
+          Array.isArray(formData.representatives)
+        ) {
+          formData.representatives.forEach((rep, index) => {
+            console.log(`Representative ${index + 1}:`, rep);
+          });
+        }
+
         mappedData = mapCompanyDataToDokumentationsbogen(
           formData,
           getDocumentType(),
         );
+
+        // Debug: log the mapped data
+        console.log("Mapped dokumentationsbogen data:", mappedData);
+
+        // Log field names and values for representatives
+        console.log("----- REPRESENTATIVES MAPPING -----");
+        const repFieldNames = [
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu",
+          "Namen aller gesetzlichen Vertreter  Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_2",
+          "Namen aller gesetzlichen Vertreter  Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_3",
+          "Namen aller gesetzlichen Vertreter  Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_4",
+        ];
+
+        repFieldNames.forEach((fieldName, i) => {
+          console.log(
+            `Rep field ${i + 1} (${fieldName}):`,
+            mappedData[fieldName],
+          );
+        });
       } else {
         throw new Error("Ungültiger Formulartyp");
       }

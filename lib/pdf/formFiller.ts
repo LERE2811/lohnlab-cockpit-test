@@ -265,6 +265,15 @@ export function mapCompanyDataToDokumentationsbogen(
     employeeCount?: string;
     hasPep?: boolean;
     pepDetails?: string;
+    mainOfficeAddress?: string;
+    representatives?: string[];
+    beneficialOwners?: Array<{
+      Vorname?: string;
+      Nachname?: string;
+      Geburtsdatum?: string;
+      Staatsbürgerschaft?: string;
+    }>;
+    representativeEmail?: string;
   },
   documentType: string,
 ): Record<string, string> {
@@ -285,12 +294,12 @@ export function mapCompanyDataToDokumentationsbogen(
   const commonFields: Record<string, string> = {
     // Company information
     Firma: data.companyName || "",
-    "Name des Unternehmens": data.companyName || "",
+    "Name des Unternehmens": data.subsidiaryName || "",
     "Firma des Unternehmens": data.companyName || "",
     Firmenname: data.companyName || "",
 
     // Address information
-    Anschrift: fullAddress,
+    Anschrift: data.mainOfficeAddress || fullAddress,
     "Straße und Hausnummer": `${data.street || ""} ${data.houseNumber || ""}`,
     "Postleitzahl und Ort": `${data.postalCode || ""} ${data.city || ""}`,
 
@@ -517,6 +526,51 @@ export function mapCompanyDataToDokumentationsbogen(
         }
       }
 
+      // Debug logging for representatives
+      console.log("Mapping representatives data:", data.representatives);
+
+      // Store all representative fields to be added to the return object
+      const representativeFields: Record<string, string> = {};
+
+      // Map representatives to their exact field names
+      if (data.representatives && Array.isArray(data.representatives)) {
+        const exactFieldNames = [
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu",
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_2",
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_3",
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu_4",
+        ];
+
+        // Map each representative to its corresponding field
+        for (
+          let i = 0;
+          i < Math.min(exactFieldNames.length, data.representatives.length);
+          i++
+        ) {
+          if (data.representatives[i]) {
+            representativeFields[exactFieldNames[i]] = data.representatives[i];
+            console.log(
+              `Mapping representative ${i + 1} to field: ${exactFieldNames[i]}`,
+            );
+          }
+        }
+      }
+
+      // Add fallback for first representative field if no representatives were provided
+      if (
+        !representativeFields[
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu"
+        ]
+      ) {
+        representativeFields[
+          "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu"
+        ] = contactFullName;
+        console.log(
+          "Using contact name as fallback for first representative:",
+          contactFullName,
+        );
+      }
+
       // Format today's date for signature for GmbH/UG
       const gmbhFormattedDate = today.toLocaleDateString("de-DE", {
         day: "2-digit",
@@ -526,33 +580,30 @@ export function mapCompanyDataToDokumentationsbogen(
 
       return {
         // Company Information
-        "Name des Unternehmens": data.companyName || "",
-        "Anschrift des Sitzes der Hauptniederlassung": `${data.street || ""} ${data.houseNumber || ""}`,
-        "Anschrift des Sitzes der Hauptniederlassung_2": `${data.postalCode || ""} ${data.city || ""}`,
+        "Name des Unternehmens": data.subsidiaryName || "",
+        "Anschrift des Sitzes der Hauptniederlassung":
+          data.mainOfficeAddress ||
+          `${data.street || ""} ${data.houseNumber || ""}`,
+        "Anschrift des Sitzes der Hauptniederlassung_2": data.mainOfficeAddress
+          ? ""
+          : `${data.postalCode || ""} ${data.city || ""}`,
         Rechtsform: data.legalForm || "",
         Registernummer: data.registrationNumber || "",
 
-        // Representatives - up to 4 lines
-        "Namen aller gesetzlichen Vertreter Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu":
-          contactFullName,
-        "Namen aller gesetzlichen Vertreter Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_2":
-          "",
-        "Namen aller gesetzlichen Vertreter Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_3":
-          "",
-        "Namen aller gesetzlichen Vertreter Mitglieder des…ertretungsorgans Prokuristen gehören nicht dazu_4":
-          "",
+        // Add all representative fields
+        ...representativeFields,
 
         // Contact information
-        "EMail Adressen": data.contactEmail || "",
+        "EMail Adressen": data.representativeEmail || data.contactEmail || "",
 
         // Industry categories
         ...gmbhIndustryFields,
 
         // Economic Beneficiaries section
         "Die aufgeführten Personen halten unmittelbar oder …r mehr als 25 der Kapital oder Stimmrechtsanteile":
-          "Yes",
-        "Es existiert keine natürliche Person die mehr als …al oder Stimmrechtsanteilen hält Die aufgeführten":
           "Off",
+        "Es existiert keine natürliche Person die mehr als …al oder Stimmrechtsanteilen hält Die aufgeführten":
+          "Yes",
 
         // Representative info (first row)
         VornameRow1: data.contactFirstName || "",
@@ -580,6 +631,57 @@ export function mapCompanyDataToDokumentationsbogen(
         "bis zu 10000 EUR pro Jahr nach  37b EStG pauschalversteurter Sachbezug":
           "Yes",
 
+        // Beneficial owners (wirtschaftlich Berechtigten) - up to 5 rows
+        ...(data.beneficialOwners && data.beneficialOwners[0]
+          ? {
+              VornameRow1: data.beneficialOwners[0].Vorname || "",
+              NachnameRow1: data.beneficialOwners[0].Nachname || "",
+              GeburtsdatumRow1: data.beneficialOwners[0].Geburtsdatum || "",
+              StaatsbürgerschaftRow1:
+                data.beneficialOwners[0].Staatsbürgerschaft || "",
+            }
+          : {}),
+
+        ...(data.beneficialOwners && data.beneficialOwners[1]
+          ? {
+              VornameRow2: data.beneficialOwners[1].Vorname || "",
+              NachnameRow2: data.beneficialOwners[1].Nachname || "",
+              GeburtsdatumRow2: data.beneficialOwners[1].Geburtsdatum || "",
+              StaatsbürgerschaftRow2:
+                data.beneficialOwners[1].Staatsbürgerschaft || "",
+            }
+          : {}),
+
+        ...(data.beneficialOwners && data.beneficialOwners[2]
+          ? {
+              VornameRow3: data.beneficialOwners[2].Vorname || "",
+              NachnameRow3: data.beneficialOwners[2].Nachname || "",
+              GeburtsdatumRow3: data.beneficialOwners[2].Geburtsdatum || "",
+              StaatsbürgerschaftRow3:
+                data.beneficialOwners[2].Staatsbürgerschaft || "",
+            }
+          : {}),
+
+        ...(data.beneficialOwners && data.beneficialOwners[3]
+          ? {
+              VornameRow4: data.beneficialOwners[3].Vorname || "",
+              NachnameRow4: data.beneficialOwners[3].Nachname || "",
+              GeburtsdatumRow4: data.beneficialOwners[3].Geburtsdatum || "",
+              StaatsbürgerschaftRow4:
+                data.beneficialOwners[3].Staatsbürgerschaft || "",
+            }
+          : {}),
+
+        ...(data.beneficialOwners && data.beneficialOwners[4]
+          ? {
+              VornameRow5: data.beneficialOwners[4].Vorname || "",
+              NachnameRow5: data.beneficialOwners[4].Nachname || "",
+              GeburtsdatumRow5: data.beneficialOwners[4].Geburtsdatum || "",
+              StaatsbürgerschaftRow5:
+                data.beneficialOwners[4].Staatsbürgerschaft || "",
+            }
+          : {}),
+
         // Signature
         "Ort, Datum, Unterschrift": `${data.city || ""}, ${gmbhFormattedDate}`,
       };
@@ -593,7 +695,7 @@ export function mapCompanyDataToDokumentationsbogen(
         Rechtsform: "AG",
         Registernummer: data.registrationNumber || "",
         // Representatives information (if available)
-        "Namen aller gesetzlichen Vertreter Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu":
+        "Namen aller gesetzlichen Vertreter  Mitglieder des Vertretungsorgans Prokuristen gehören nicht dazu":
           data.contactFirstName && data.contactLastName
             ? `${data.contactFirstName} ${data.contactLastName}`
             : "",

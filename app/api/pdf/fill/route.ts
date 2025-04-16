@@ -102,6 +102,10 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      console.log(
+        "Form data being sent to PDF filler:",
+        JSON.stringify(formData, null, 2),
+      );
       await pdfFiller.fillForm(formData);
     } catch (fillError: any) {
       console.error("Error filling PDF form:", fillError);

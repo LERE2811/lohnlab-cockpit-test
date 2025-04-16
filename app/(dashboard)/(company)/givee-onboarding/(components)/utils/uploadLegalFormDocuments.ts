@@ -1,21 +1,13 @@
+import { FileMetadata } from "@/utils/file-upload";
 import { supabase } from "@/utils/supabase/client";
-import { File as CustomFile } from "@/shared/file";
 import { OnboardingFileMetadata } from "../types";
-
-interface FileUploadResult {
-  fileName: string;
-  filePath: string;
-  fileType: string;
-  fileSize: number;
-  signedUrl: string;
-}
 
 /**
  * Uploads a file to Supabase storage in the givve_documents bucket
  * Returns the file metadata including a signed URL
  */
 export const uploadFile = async (
-  file: CustomFile,
+  file: File,
   subsidiaryId: string,
   folder: string,
 ): Promise<OnboardingFileMetadata | null> => {
@@ -58,60 +50,30 @@ export const uploadFile = async (
 };
 
 /**
- * Uploads multiple legal form documents to Supabase storage
- * and returns metadata for all successfully uploaded files
+ * Handles the upload of documents for a legal form
  */
 export const uploadLegalFormDocuments = async (
-  files: { [key: string]: CustomFile[] },
-  subsidiaryId: string,
-  legalForm: string,
-): Promise<{ [key: string]: OnboardingFileMetadata[] } | null> => {
-  if (!subsidiaryId) {
-    console.error("Missing subsidiary ID");
-    return null;
-  }
+  documents: { [key: string]: File | undefined },
+  company_id: string,
+  folder: string,
+): Promise<Record<string, OnboardingFileMetadata>> => {
+  const entries = Object.entries(documents).filter(
+    ([, file]) => file !== undefined,
+  ) as [string, File][];
 
-  try {
-    const uploadResults: { [key: string]: OnboardingFileMetadata[] } = {};
-    const folderName = `legal_form_documents/${legalForm}`;
+  // Process all uploads in parallel
+  const uploadPromises = entries.map(async ([key, file]) => {
+    const fileWithMetadata = await uploadFile(
+      file,
+      company_id,
+      `${folder}/${key}`,
+    );
 
-    // Upload files for each document type
-    for (const documentType in files) {
-      const filesForType = files[documentType];
-      const uploads: OnboardingFileMetadata[] = [];
+    return [key, fileWithMetadata] as [string, OnboardingFileMetadata];
+  });
 
-      for (const file of filesForType) {
-        const uploadResult = await uploadFile(file, subsidiaryId, folderName);
-        if (uploadResult) {
-          uploads.push(uploadResult);
-        }
-      }
-
-      if (uploads.length > 0) {
-        uploadResults[documentType] = uploads;
-      }
-    }
-
-    // Update subsidiary record with the legal documents path
-    const { error: updateError } = await supabase
-      .from("subsidiaries")
-      .update({
-        givve_legal_documents_bucket_path: `${subsidiaryId}/${folderName}`,
-      })
-      .eq("id", subsidiaryId);
-
-    if (updateError) {
-      console.error(
-        "Error updating subsidiary with documents path:",
-        updateError,
-      );
-    }
-
-    return Object.keys(uploadResults).length > 0 ? uploadResults : null;
-  } catch (error) {
-    console.error("Error uploading legal form documents:", error);
-    return null;
-  }
+  const resolvedUploads = await Promise.all(uploadPromises);
+  return Object.fromEntries(resolvedUploads);
 };
 
 /**
@@ -120,7 +82,7 @@ export const uploadLegalFormDocuments = async (
  */
 export const prepareDocumentsForSaving = (
   documentFormData: any,
-  uploadedDocuments: Record<string, FileUploadResult>,
+  uploadedDocuments: Record<string, OnboardingFileMetadata>,
 ): Record<string, any> => {
   const documentsData = { ...documentFormData };
 
@@ -132,7 +94,7 @@ export const prepareDocumentsForSaving = (
       filePath: metadata.filePath,
       fileType: metadata.fileType,
       fileSize: metadata.fileSize,
-      uploadedAt: new Date().toISOString(),
+      uploadedAt: metadata.uploadedAt || new Date().toISOString(),
       signedUrl: metadata.signedUrl,
     };
   }
