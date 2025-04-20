@@ -47,7 +47,7 @@ export const CreditCardPreview: FC<CreditCardPreviewProps> = ({
               ? "#000000"
               : type === "standard"
                 ? "#ffffff"
-                : "#f0f0f0"
+                : "url(#designPattern)"
           }
           rx="3.18"
           ry="3.18"
@@ -202,6 +202,9 @@ export const CreditCardPreview: FC<CreditCardPreviewProps> = ({
 
         {/* Blur-Effekt für Text */}
         <defs>
+          <pattern id="designPattern" patternUnits="userSpaceOnUse" width="85.6" height="54">
+            <image href="/assets/design-card-bg.jpg" width="85.6" height="54" preserveAspectRatio="xMidYMid slice"/>
+          </pattern>
           <filter id="blur">
             <feGaussianBlur in="SourceGraphic" stdDeviation="1" />
           </filter>
