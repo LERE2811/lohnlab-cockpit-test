@@ -190,7 +190,7 @@ type SubsidiarySchemaType = z.ZodObject<{
   >;
   collective_agreement_document_url: z.ZodOptional<z.ZodString>;
   // Givve Card related fields
-  has_givve_card: z.ZodOptional<z.ZodBoolean>;
+  has_givve_card: z.ZodBoolean;
   givve_legal_form: z.ZodOptional<z.ZodString>;
   givve_card_design_type: z.ZodOptional<
     z.ZodEnum<
@@ -207,6 +207,14 @@ type SubsidiarySchemaType = z.ZodObject<{
   givve_card_second_line: z.ZodOptional<z.ZodString>;
   givve_loading_date: z.ZodOptional<z.ZodString>;
   givve_industry_category: z.ZodOptional<z.ZodString>;
+  // Givve Onboarding fields
+  givve_onboarding_step: z.ZodOptional<z.ZodNumber>;
+  givve_onboarding_completed: z.ZodOptional<z.ZodBoolean>;
+  givve_video_identification_link: z.ZodOptional<z.ZodString>;
+  givve_order_forms_downloaded: z.ZodOptional<z.ZodBoolean>;
+  givve_documentation_forms_downloaded: z.ZodOptional<z.ZodBoolean>;
+  givve_legal_documents_bucket_path: z.ZodOptional<z.ZodString>;
+  givve_onboarding_status: z.ZodOptional<z.ZodString>;
   // Import file preferences
   wants_import_file: z.ZodOptional<z.ZodBoolean>;
   import_date_type: z.ZodOptional<z.ZodEnum<["standard", "custom"]>>;
@@ -430,7 +438,7 @@ export const subsidiarySchema: SubsidiarySchemaType = z.object({
     .optional(),
   collective_agreement_document_url: z.string().optional(),
   // Givve Card related fields
-  has_givve_card: z.boolean().optional(),
+  has_givve_card: z.boolean(),
   givve_legal_form: z.string().optional(),
   givve_card_design_type: z
     .enum([
@@ -445,6 +453,14 @@ export const subsidiarySchema: SubsidiarySchemaType = z.object({
   givve_card_second_line: z.string().optional(),
   givve_loading_date: z.string().optional(),
   givve_industry_category: z.string().optional(),
+  // Givve Onboarding fields
+  givve_onboarding_step: z.number().optional(),
+  givve_onboarding_completed: z.boolean().optional(),
+  givve_video_identification_link: z.string().optional(),
+  givve_order_forms_downloaded: z.boolean().optional(),
+  givve_documentation_forms_downloaded: z.boolean().optional(),
+  givve_legal_documents_bucket_path: z.string().optional(),
+  givve_onboarding_status: z.string().optional(),
   // Import file preferences
   wants_import_file: z.boolean().optional(),
   import_date_type: z.enum(["standard", "custom"]).optional(),

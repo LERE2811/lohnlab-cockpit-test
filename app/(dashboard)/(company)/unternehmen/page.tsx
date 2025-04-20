@@ -14,10 +14,21 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
+import {
+  FileDown,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Building2,
+  CreditCard,
+  Clock,
+} from "lucide-react";
 import { getSignedUrl } from "@/utils/file-upload";
 import { OnboardingFileMetadata } from "@/utils/file-upload";
 import { CollectiveAgreementTypes, GivveCardDesignTypes } from "@/shared/model";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 const UnternehmenPage = () => {
   const { subsidiary } = useCompany();
@@ -33,6 +44,7 @@ const UnternehmenPage = () => {
       downloadUrl: string | null;
     }[]
   >([]);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchOnboardingData = async () => {
@@ -184,6 +196,134 @@ const UnternehmenPage = () => {
     <div className="container mx-auto space-y-8 py-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{subsidiary.name}</h1>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card
+          className={cn(
+            "overflow-hidden transition-all duration-200",
+            subsidiary.onboarding_completed ? "opacity-70" : "hover:shadow-md",
+          )}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center text-lg">
+              <Building2 className="mr-2 h-5 w-5 text-primary" />
+              Unternehmen Onboarding
+            </CardTitle>
+            <CardDescription>
+              Grundlegende Unternehmensdaten vervollständigen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center">
+                  <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>Status:</span>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-medium",
+                    subsidiary.onboarding_completed
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+                  )}
+                >
+                  {subsidiary.onboarding_completed
+                    ? "Abgeschlossen"
+                    : `Schritt ${subsidiary.onboarding_step || 1} von 7`}
+                </span>
+              </div>
+              <div className="mt-4">
+                <Button
+                  variant="default"
+                  className="w-full"
+                  disabled={subsidiary.onboarding_completed}
+                  onClick={() => router.push("/onboarding")}
+                >
+                  {subsidiary.onboarding_completed
+                    ? "Onboarding abgeschlossen"
+                    : "Onboarding fortsetzen"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "overflow-hidden transition-all duration-200",
+            !subsidiary.has_givve_card
+              ? "opacity-70"
+              : subsidiary.givve_onboarding_completed
+                ? "opacity-70"
+                : "hover:shadow-md",
+          )}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center text-lg">
+              <CreditCard className="mr-2 h-5 w-5 text-primary" />
+              givve® Card Onboarding
+            </CardTitle>
+            <CardDescription>
+              givve® Card für Mitarbeiter einrichten
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center">
+                  <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>Status:</span>
+                </div>
+                {!subsidiary.has_givve_card &&
+                subsidiary.givve_onboarding_completed ? (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-800/30 dark:text-gray-400">
+                    Abgeschlossen
+                  </span>
+                ) : !subsidiary.givve_onboarding_completed ? (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                    Nicht aktiviert
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                    Schritt {subsidiary.givve_onboarding_step || 1} von 4
+                  </span>
+                )}
+              </div>
+              <div className="mt-4">
+                <Button
+                  variant="default"
+                  className="w-full"
+                  disabled={
+                    !subsidiary.has_givve_card ||
+                    (subsidiary.givve_onboarding_completed &&
+                      subsidiary.has_givve_card)
+                  }
+                  onClick={() => router.push("/givee-onboarding")}
+                >
+                  {!subsidiary.has_givve_card &&
+                  !subsidiary.givve_onboarding_completed
+                    ? "givve Card nicht aktiviert"
+                    : subsidiary.givve_onboarding_completed
+                      ? "Onboarding abgeschlossen"
+                      : "Onboarding fortsetzen"}
+                </Button>
+
+                {!subsidiary.has_givve_card &&
+                  subsidiary.givve_onboarding_completed && (
+                    <Button
+                      variant="outline"
+                      className="mt-2 w-full"
+                      onClick={() => router.push("/givee-onboarding/status")}
+                    >
+                      Status anzeigen
+                    </Button>
+                  )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs defaultValue="info" className="w-full">
