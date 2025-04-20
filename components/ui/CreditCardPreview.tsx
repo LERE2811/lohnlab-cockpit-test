@@ -56,43 +56,34 @@ export const CreditCardPreview: FC<CreditCardPreviewProps> = ({
         {/* StandardCard Design */}
         {type === "standard" && (
           <g>
-            <path d="M0 0 h17.12 v54 h-17.12 Z" fill="#000000" />
+            <path d="M0 0 h85.6 v54 h-85.6 Z" fill="#1F1F29" />
             <path
               d={`
-              M17.12 0 
-              C19 18, 15 36, 17.12 54 
-              L34.24 54 
-              C32 36, 36 18, 34.24 0 
-              Z`}
-              fill="rgb(163,209,203)"
+              M0 0 
+              h28.5 
+              q-2 27, 0 54 
+              h-28.5 Z`}
+              fill="#45BFB7"
             />
             <path
               d={`
-              M34.24 0 
-              C36 18, 32 36, 34.24 54 
-              L51.36 54 
-              C49 36, 53 18, 51.36 0 
+              M28.5 0 
+              h28.5
+              q-2 27, 0 54 
+              h-28.5
+              q-2 -27, 0 -54 
               Z`}
-              fill="rgb(246,192,0)"
+              fill="#FFD338"
             />
             <path
               d={`
-              M51.36 0 
-              C53 18, 49 36, 51.36 54 
-              L63.48 54 
-              C61 36, 65 18, 63.48 0 
+              M57 0 
+              h28.6
+              v54 
+              h-28.6
+              q-2 -27, 0 -54 
               Z`}
-              fill="rgb(244,141,1)"
-            />
-            <path
-              d={`
-              M63.48 0 
-              L85.6 0 
-              L85.6 54 
-              L63.48 54 
-              C65 36, 61 18, 63.48 0 
-              Z`}
-              fill="rgb(228,231,234)"
+              fill="#F5A623"
             />
 
             {/* givve Logo */}
